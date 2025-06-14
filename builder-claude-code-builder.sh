@@ -56,15 +56,47 @@ TOTAL_TOKENS_USED=0
 TOTAL_COST="0.0"
 
 # Load external instructions if available
-INSTRUCTIONS_FILE="instructions.md"
-PHASES_FILE="phases.md"
-PROMPT_FILE="prompt.md"
-TASKS_FILE="tasks.md"
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Look for files in script directory first, then current directory
+if [ -f "$SCRIPT_DIR/instructions.md" ]; then
+    INSTRUCTIONS_FILE="$SCRIPT_DIR/instructions.md"
+elif [ -f "instructions.md" ]; then
+    INSTRUCTIONS_FILE="instructions.md"
+else
+    INSTRUCTIONS_FILE=""
+fi
+
+if [ -f "$SCRIPT_DIR/phases.md" ]; then
+    PHASES_FILE="$SCRIPT_DIR/phases.md"
+elif [ -f "phases.md" ]; then
+    PHASES_FILE="phases.md"
+else
+    PHASES_FILE=""
+fi
+
+if [ -f "$SCRIPT_DIR/prompt.md" ]; then
+    PROMPT_FILE="$SCRIPT_DIR/prompt.md"
+elif [ -f "prompt.md" ]; then
+    PROMPT_FILE="prompt.md"
+else
+    PROMPT_FILE=""
+fi
+
+if [ -f "$SCRIPT_DIR/tasks.md" ]; then
+    TASKS_FILE="$SCRIPT_DIR/tasks.md"
+elif [ -f "tasks.md" ]; then
+    TASKS_FILE="tasks.md"
+else
+    TASKS_FILE=""
+fi
 
 # Check for required files
-for file in "$PHASES_FILE" "$PROMPT_FILE" "$INSTRUCTIONS_FILE" "$TASKS_FILE"; do
-    if [ ! -f "$file" ]; then
-        echo -e "${RED}Error: Required file $file not found${NC}"
+for file_var in PHASES_FILE PROMPT_FILE INSTRUCTIONS_FILE TASKS_FILE; do
+    file="${!file_var}"
+    if [ -z "$file" ] || [ ! -f "$file" ]; then
+        echo -e "${RED}Error: Required file ${file_var//_FILE/}.md not found in script directory or current directory${NC}"
         echo -e "${YELLOW}Please run this script in a directory with all supporting files.${NC}"
         exit 1
     fi
@@ -516,14 +548,49 @@ validate_phase() {
     local phase=$1
     
     case $phase in
-        1) validate_phase_1 ;;
-        2) validate_phase_2 ;;
+        1) validate_phase_1; return $? ;;
+        2) validate_phase_2; return $? ;;
         *) 
             # Generic validation for other phases
             log_phase "VALIDATE" "Validating Phase $phase"
             return 0
             ;;
     esac
+}
+
+# Execute phase with retry logic
+execute_phase_with_retry() {
+    local phase_num=$1
+    local phase_description=$2
+    local next_phase=$((phase_num + 1))
+    local validation_attempts=0
+    local phase_complete=false
+    
+    while [ "$phase_complete" = false ] && [ $validation_attempts -lt $MAX_PHASE_RETRIES ]; do
+        show_progress $phase_num "$phase_description"
+        
+        if run_claude_auto "$(get_phase_prompt $phase_num)" "$phase_description"; then
+            if validate_phase $phase_num; then
+                CURRENT_PHASE=$next_phase
+                save_state $next_phase "ready" "$phase_description completed"
+                phase_complete=true
+            else
+                ((validation_attempts++))
+                log_error "Phase $phase_num validation failed (attempt $validation_attempts/$MAX_PHASE_RETRIES)"
+                if [ $validation_attempts -lt $MAX_PHASE_RETRIES ]; then
+                    log_warning "Validation failed. Retrying phase..."
+                    echo -e "${YELLOW}Waiting ${RETRY_DELAY} seconds before retry...${NC}"
+                    sleep $RETRY_DELAY
+                else
+                    log_error "Phase $phase_num failed after $MAX_PHASE_RETRIES attempts"
+                    exit 1
+                fi
+            fi
+        else
+            log_error "Claude execution failed for Phase $phase_num"
+            exit 1
+        fi
+    done
 }
 
 # Interrupt handler
@@ -539,11 +606,21 @@ trap handle_interrupt SIGINT SIGTERM
 # Load phase details
 get_phase_prompt() {
     local phase_num=$1
-    local phase_content=$(cat "$PHASES_FILE")
-    local tasks_content=$(cat "$TASKS_FILE")
+    local phase_content=""
+    local tasks_content=""
     
-    # Extract the specific phase section from phases.md
-    local phase_section=$(echo "$phase_content" | awk "/^## Phase $phase_num:/{flag=1} /^## Phase $((phase_num+1)):/{flag=0} flag")
+    # Check if files exist before reading
+    if [ -f "$PHASES_FILE" ]; then
+        phase_content=$(cat "$PHASES_FILE")
+        # Extract the specific phase section from phases.md
+        phase_section=$(echo "$phase_content" | awk "/^## Phase $phase_num:/{flag=1} /^## Phase $((phase_num+1)):/{flag=0} flag")
+    else
+        phase_section=""
+    fi
+    
+    if [ -f "$TASKS_FILE" ]; then
+        tasks_content=$(cat "$TASKS_FILE")
+    fi
     
     # Combine with custom instructions and full spec
     echo "$phase_section
@@ -602,126 +679,62 @@ fi
 
 # Phase 1: Project Foundation and Structure
 if [ $CURRENT_PHASE -eq 1 ]; then
-    show_progress 1 "Project Foundation and Package Structure"
-    
-    if run_claude_auto "$(get_phase_prompt 1)" "Project Foundation"; then
-        if validate_phase 1; then
-            CURRENT_PHASE=2
-            save_state 2 "ready" "Foundation created"
-        fi
-    fi
+    execute_phase_with_retry 1 "Project Foundation and Package Structure"
 fi
 
 # Phase 2: Data Models and Types
 if [ $CURRENT_PHASE -eq 2 ]; then
-    show_progress 2 "Data Models and Types"
-    
-    if run_claude_auto "$(get_phase_prompt 2)" "Data Models"; then
-        if validate_phase 2; then
-            CURRENT_PHASE=3
-            save_state 3 "ready" "Models implemented"
-        fi
-    fi
+    execute_phase_with_retry 2 "Data Models and Types"
 fi
 
 # Phase 3: MCP System Implementation
 if [ $CURRENT_PHASE -eq 3 ]; then
-    show_progress 3 "MCP System Implementation"
-    
-    if run_claude_auto "$(get_phase_prompt 3)" "MCP System"; then
-        CURRENT_PHASE=4
-        save_state 4 "ready" "MCP system implemented"
-    fi
+    execute_phase_with_retry 3 "MCP System Implementation"
 fi
 
 # Phase 4: Research System
 if [ $CURRENT_PHASE -eq 4 ]; then
-    show_progress 4 "Research System"
-    
-    if run_claude_auto "$(get_phase_prompt 4)" "Research System"; then
-        CURRENT_PHASE=5
-        save_state 5 "ready" "Research system implemented"
-    fi
+    execute_phase_with_retry 4 "Research System"
 fi
 
 # Phase 5: Custom Instructions System
 if [ $CURRENT_PHASE -eq 5 ]; then
-    show_progress 5 "Custom Instructions System"
-    
-    if run_claude_auto "$(get_phase_prompt 5)" "Custom Instructions"; then
-        CURRENT_PHASE=6
-        save_state 6 "ready" "Custom instructions implemented"
-    fi
+    execute_phase_with_retry 5 "Custom Instructions System"
 fi
 
 # Phase 6: Execution System
 if [ $CURRENT_PHASE -eq 6 ]; then
-    show_progress 6 "Execution System"
-    
-    if run_claude_auto "$(get_phase_prompt 6)" "Execution System"; then
-        CURRENT_PHASE=7
-        save_state 7 "ready" "Execution system implemented"
-    fi
+    execute_phase_with_retry 6 "Execution System"
 fi
 
 # Phase 7: UI and Progress System
 if [ $CURRENT_PHASE -eq 7 ]; then
-    show_progress 7 "UI and Progress System"
-    
-    if run_claude_auto "$(get_phase_prompt 7)" "UI System"; then
-        CURRENT_PHASE=8
-        save_state 8 "ready" "UI system implemented"
-    fi
+    execute_phase_with_retry 7 "UI and Progress System"
 fi
 
 # Phase 8: Validation System
 if [ $CURRENT_PHASE -eq 8 ]; then
-    show_progress 8 "Validation System"
-    
-    if run_claude_auto "$(get_phase_prompt 8)" "Validation System"; then
-        CURRENT_PHASE=9
-        save_state 9 "ready" "Validation system implemented"
-    fi
+    execute_phase_with_retry 8 "Validation System"
 fi
 
 # Phase 9: Utilities and Helpers
 if [ $CURRENT_PHASE -eq 9 ]; then
-    show_progress 9 "Utilities and Helpers"
-    
-    if run_claude_auto "$(get_phase_prompt 9)" "Utilities"; then
-        CURRENT_PHASE=10
-        save_state 10 "ready" "Utilities implemented"
-    fi
+    execute_phase_with_retry 9 "Utilities and Helpers"
 fi
 
 # Phase 10: Main Application Integration
 if [ $CURRENT_PHASE -eq 10 ]; then
-    show_progress 10 "Main Application Integration"
-    
-    if run_claude_auto "$(get_phase_prompt 10)" "Integration"; then
-        CURRENT_PHASE=11
-        save_state 11 "ready" "Integration complete"
-    fi
+    execute_phase_with_retry 10 "Main Application Integration"
 fi
 
 # Phase 11: Testing and Examples
 if [ $CURRENT_PHASE -eq 11 ]; then
-    show_progress 11 "Testing and Examples"
-    
-    if run_claude_auto "$(get_phase_prompt 11)" "Testing"; then
-        CURRENT_PHASE=12
-        save_state 12 "ready" "Testing implemented"
-    fi
+    execute_phase_with_retry 11 "Testing and Examples"
 fi
 
 # Phase 12: Documentation and Polish
 if [ $CURRENT_PHASE -eq 12 ]; then
-    show_progress 12 "Documentation and Polish"
-    
-    if run_claude_auto "$(get_phase_prompt 12)" "Documentation"; then
-        echo -e "\n${GREEN}✅ Claude Code Builder v2.3.0 implementation complete!${NC}"
-        save_state 12 "completed" "Build complete"
-    fi
+    execute_phase_with_retry 12 "Documentation and Polish"
 fi
 
 # Final summary
