@@ -346,6 +346,50 @@ claude-code-builder/
 2. **Study the prompts** - Look at phases.md to see tool instructions
 3. **Apply to your project** - Use these patterns for your own builds
 
+## 🔮 The Next Evolution: Claude Code Builder (WIP)
+
+The techniques in this tutorial are being generalized into a production tool that can apply this same approach to ANY project specification:
+
+### 🚧 [Claude Code Builder](https://github.com/krzemienski/claude-code-builder) (Work in Progress)
+
+What you're seeing in this tutorial (building a specific Python package) is becoming a **universal tool** that can:
+
+```bash
+# Take ANY project specification
+claude-code-builder your-project-spec.md \
+    --enable-research \      # 7 AI agents analyze your spec
+    --discover-mcp \         # Auto-discover needed MCP servers
+    --auto-install-mcp \     # Install and configure them
+    --phases 12 \            # Break into optimal phases
+    --export-report          # Full build analytics
+```
+
+**Key Features Being Built:**
+- **Agnostic Architecture** - Works with ANY language/framework
+- **AI Research Phase** - 7 specialized agents analyze your spec first
+- **Dynamic Phase Generation** - Creates optimal phases for YOUR project
+- **MCP Discovery** - Automatically finds and configures needed MCP servers
+- **Custom Instructions** - Generates project-specific tool reminders
+- **Resume Capability** - Pick up where you left off
+- **Cost Tracking** - Know exactly what you're spending
+- **Validation System** - Ensures quality at every phase
+
+**The Vision:**
+```mermaid
+graph LR
+    A[Your Spec.md] --> B[Claude Code Builder]
+    B --> C[AI Research]
+    C --> D[Phase Planning]
+    D --> E[MCP Discovery]
+    E --> F[Multi-Phase Build]
+    F --> G[Complete Project]
+    
+    style B fill:#f9f,stroke:#333,stroke-width:4px
+    style C fill:#9ff,stroke:#333,stroke-width:2px
+```
+
+This is the future of AI-powered development - taking the orchestration patterns from this tutorial and making them available for ANY project.
+
 Remember: The difference between amateur and professional Claude Code usage is **orchestration with memory and tool awareness**.
 
 ---
