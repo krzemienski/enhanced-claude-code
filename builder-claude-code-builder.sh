@@ -55,6 +55,10 @@ TOTAL_API_CALLS=0
 TOTAL_TOKENS_USED=0
 TOTAL_COST="0.0"
 
+# Memory management tracking
+MEMORY_KEYS_FILE=".memory_keys.json"
+declare -A MEMORY_KEYS
+
 # Load external instructions if available
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -156,6 +160,12 @@ log_phase() {
         "VALIDATE")
             echo -e "${BLUE}[VALIDATING]${NC} ${timestamp} 🔍 ${BOLD}$message${NC}" | tee -a "$HUMAN_LOG" "$VALIDATION_LOG"
             ;;
+        "INIT")
+            echo -e "${CYAN}[INITIALIZING]${NC} ${timestamp} 🔧 ${BOLD}$message${NC}" | tee -a "$HUMAN_LOG"
+            ;;
+        "ANALYSIS")
+            echo -e "${YELLOW}[ANALYZING]${NC} ${timestamp} 📊 ${BOLD}$message${NC}" | tee -a "$HUMAN_LOG"
+            ;;
     esac
 }
 
@@ -190,6 +200,42 @@ log_tool_use() {
 log_ai_message() {
     local message=$1
     echo -e "${LIGHT_BLUE}🤖${NC} Claude: $message"
+}
+
+# Memory management functions
+load_memory_keys() {
+    if [ -f "$MEMORY_KEYS_FILE" ]; then
+        while IFS="=" read -r key value; do
+            MEMORY_KEYS["$key"]="$value"
+        done < <(jq -r 'to_entries[] | "\(.key)=\(.value)"' "$MEMORY_KEYS_FILE")
+    fi
+}
+
+save_memory_keys() {
+    local json_obj="{"
+    local first=true
+    for key in "${!MEMORY_KEYS[@]}"; do
+        if [ "$first" = true ]; then
+            first=false
+        else
+            json_obj+=","
+        fi
+        json_obj+="\"$key\":\"${MEMORY_KEYS[$key]}\""
+    done
+    json_obj+="}"
+    echo "$json_obj" > "$MEMORY_KEYS_FILE"
+}
+
+check_memory_key_exists() {
+    local key=$1
+    [[ -v MEMORY_KEYS["$key"] ]] && return 0 || return 1
+}
+
+add_memory_key() {
+    local key=$1
+    local phase=${2:-$CURRENT_PHASE}
+    MEMORY_KEYS["$key"]="phase_${phase}_$(date +%s)"
+    save_memory_keys
 }
 
 # State management
@@ -240,7 +286,7 @@ load_state() {
     return 0
 }
 
-# MCP Configuration for Claude Code Builder
+# MCP Configuration for Claude Code Builder with Git support
 setup_mcp_servers() {
     log_phase "START" "Setting up MCP servers for Claude Code Builder"
     
@@ -263,16 +309,162 @@ setup_mcp_servers() {
 "command": "npx",
 "args": ["-y", "@modelcontextprotocol/server-filesystem", "--allowed-paths", "."],
 "description": "Enhanced file operations for complex project structure"
+},
+"git": {
+"command": "npx",
+"args": ["-y", "@modelcontextprotocol/server-git"],
+"description": "Git operations for version control and progress tracking"
 }
 }
 }
 MCP_CONFIG
     
-    log_success "MCP configuration created with memory, sequential-thinking, and filesystem servers"
+    log_success "MCP configuration created with memory, sequential-thinking, filesystem, and git servers"
+    
+    # Initialize git repository if not already initialized
+    if [ ! -d ".git" ]; then
+        log_info "Initializing git repository..."
+        git init
+        git add .gitignore 2>/dev/null || echo "*.pyc" > .gitignore
+        git add .gitignore
+        git commit -m "Initial commit: Claude Code Builder project setup" || true
+    fi
+    
     log_phase "SUCCESS" "MCP configuration created"
 }
 
-# JSON stream parser for Claude output
+# Initialize function - Full analysis of specs
+init_project() {
+    log_phase "INIT" "Initializing project analysis"
+    
+    # Create analysis prompt
+    local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS
+
+You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
+
+1. ANALYZE ALL SPECIFICATIONS
+   - Read and understand the full project specification
+   - Identify all major components and their relationships
+   - Map out the complete architecture
+   - List all dependencies and requirements
+
+2. USE YOUR TOOLS TO GAIN CONTEXT
+   - Use memory__create_memory to save your analysis with keys:
+     * 'project_overview' - High-level project understanding
+     * 'architecture_analysis' - Component relationships
+     * 'dependency_list' - All required packages and tools
+     * 'phase_requirements' - What each phase needs to accomplish
+     * 'critical_features' - Must-have functionality
+   
+3. IDENTIFY KNOWLEDGE GAPS
+   - List any technologies or libraries you're not fully familiar with
+   - Identify areas that might need research
+   - Note any potential challenges or complexities
+
+4. CREATE BUILD STRATEGY
+   - Use sequential_thinking__think_about to plan the optimal build approach
+   - Consider phase dependencies and ordering
+   - Identify potential parallelization opportunities
+
+AVAILABLE MCP TOOLS:
+- memory__create_memory(key, value) - Save analysis results
+- memory__retrieve_memory(key) - Check existing knowledge
+- sequential_thinking__think_about(problem) - Analyze complex aspects
+- filesystem__read_file(path) - Read specification files
+
+FULL SPECIFICATION:
+$FULL_SPEC
+
+CUSTOM INSTRUCTIONS:
+$CUSTOM_INSTRUCTIONS
+
+Perform a comprehensive analysis and save all findings to memory with appropriate keys."
+
+    log_info "Running comprehensive project analysis..."
+    
+    # Run Claude with analysis prompt
+    run_claude_auto "$analysis_prompt" "Project Analysis"
+    
+    # Mark analysis keys as used
+    add_memory_key "project_overview" 0
+    add_memory_key "architecture_analysis" 0
+    add_memory_key "dependency_list" 0
+    add_memory_key "phase_requirements" 0
+    add_memory_key "critical_features" 0
+    
+    log_phase "SUCCESS" "Project analysis completed"
+}
+
+# Start function - Web search and dependency resolution
+start_project() {
+    log_phase "START" "Starting dependency resolution and research"
+    
+    # Create research prompt
+    local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE
+
+Based on your initialization analysis, you must now:
+
+1. RETRIEVE YOUR ANALYSIS
+   - Use memory__retrieve_memory to get:
+     * 'dependency_list' - All identified dependencies
+     * 'critical_features' - Key features to research
+     * 'architecture_analysis' - Technical requirements
+
+2. SEARCH FOR DOCUMENTATION
+   - Use web_search to find documentation for:
+     * Anthropic SDK latest features and best practices
+     * Click CLI framework advanced patterns
+     * Rich terminal UI library examples
+     * MCP server implementation guides
+     * Any other identified dependencies
+
+3. RESOLVE ALL DEPENDENCIES
+   - Verify package versions and compatibility
+   - Find code examples and best practices
+   - Identify any deprecated features to avoid
+   - Look for security considerations
+
+4. UPDATE YOUR KNOWLEDGE BASE
+   - Use memory__create_memory to save research findings:
+     * 'anthropic_sdk_knowledge' - Key SDK patterns and features
+     * 'cli_best_practices' - Click framework patterns
+     * 'ui_implementation_guide' - Rich UI examples
+     * 'mcp_integration_patterns' - MCP server usage
+     * 'security_considerations' - Security best practices
+     * 'dependency_versions' - Exact versions to use
+
+5. IDENTIFY IMPLEMENTATION PATTERNS
+   - Based on research, identify:
+     * Common patterns to follow
+     * Anti-patterns to avoid
+     * Performance optimization techniques
+     * Error handling strategies
+
+AVAILABLE TOOLS:
+- memory__retrieve_memory(key) - Get your previous analysis
+- memory__create_memory(key, value) - Save research findings
+- web_search(query) - Search for documentation and examples
+- sequential_thinking__think_about(problem) - Plan implementation
+
+Start by retrieving your analysis, then search for necessary documentation."
+
+    log_info "Researching dependencies and best practices..."
+    
+    # Run Claude with research prompt
+    run_claude_auto "$research_prompt" "Dependency Research"
+    
+    # Mark research keys as used
+    add_memory_key "anthropic_sdk_knowledge" 0
+    add_memory_key "cli_best_practices" 0
+    add_memory_key "ui_implementation_guide" 0
+    add_memory_key "mcp_integration_patterns" 0
+    add_memory_key "security_considerations" 0
+    add_memory_key "dependency_versions" 0
+    
+    log_phase "SUCCESS" "Research and dependency resolution completed"
+}
+
+# JSON stream parser for Claude output with memory tracking
 parse_claude_stream() {
     local line
     local in_progress_bar=false
@@ -317,11 +509,30 @@ parse_claude_stream() {
                                     update_progress_bar
                                 fi
                                 ;;
-                            "mcp__memory__"*)
-                                log_tool_use "Memory" "Storing progress in memory server"
+                            "memory__create_memory")
+                                local mem_key=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.key // empty' 2>/dev/null)
+                                if [ -n "$mem_key" ]; then
+                                    log_tool_use "Memory" "Storing key: $mem_key"
+                                    add_memory_key "$mem_key"
+                                fi
                                 ;;
-                            "mcp__sequential-thinking__"*)
+                            "memory__retrieve_memory")
+                                local mem_key=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.key // empty' 2>/dev/null)
+                                if [ -n "$mem_key" ]; then
+                                    log_tool_use "Memory" "Retrieving key: $mem_key"
+                                fi
+                                ;;
+                            "sequential_thinking__think_about")
                                 log_tool_use "Sequential Thinking" "Planning implementation approach"
+                                ;;
+                            "web_search")
+                                local query=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.query // empty' 2>/dev/null)
+                                if [ -n "$query" ]; then
+                                    log_tool_use "Web Search" "Searching: $query"
+                                fi
+                                ;;
+                            "git__*")
+                                log_tool_use "Git" "Version control operation"
                                 ;;
                             *)
                                 log_tool_use "$tool_name" "Processing..."
@@ -383,6 +594,7 @@ run_claude_auto() {
     
     # Estimate task count based on phase (specific to Claude Code Builder)
     case $phase_num in
+        0) TOTAL_TASK_COUNT=10 ;;  # Init/Start phases
         1) TOTAL_TASK_COUNT=35 ;;  # Many files to create
         2) TOTAL_TASK_COUNT=25 ;;  # Data classes and enums
         3) TOTAL_TASK_COUNT=15 ;;  # MCP implementation
@@ -558,7 +770,41 @@ validate_phase() {
     esac
 }
 
-# Execute phase with retry logic
+# Git commit function for phase completion
+commit_phase() {
+    local phase_num=$1
+    local phase_description=$2
+    local commit_message="Phase $phase_num: $phase_description
+
+Completed implementation of:
+$(git status --porcelain | grep '^A' | awk '{print "- " $2}')
+
+This phase includes:
+- All required components for $phase_description
+- Proper error handling and validation
+- Documentation and type hints
+- Integration with previous phases
+
+Build metrics:
+- Tasks completed: $CURRENT_TASK_COUNT
+- Session cost: \$$TOTAL_COST
+- Time elapsed: $(($(date +%s) - START_TIME))s"
+
+    log_info "Committing phase $phase_num changes..."
+    
+    # Stage all changes
+    git add -A
+    
+    # Create commit
+    git commit -m "$commit_message" || {
+        log_warning "No changes to commit for phase $phase_num"
+        return 0
+    }
+    
+    log_success "Phase $phase_num changes committed to git"
+}
+
+# Execute phase with retry logic and git integration
 execute_phase_with_retry() {
     local phase_num=$1
     local phase_description=$2
@@ -571,6 +817,9 @@ execute_phase_with_retry() {
         
         if run_claude_auto "$(get_phase_prompt $phase_num)" "$phase_description"; then
             if validate_phase $phase_num; then
+                # Commit phase changes to git
+                commit_phase $phase_num "$phase_description"
+                
                 CURRENT_PHASE=$next_phase
                 save_state $next_phase "ready" "$phase_description completed"
                 phase_complete=true
@@ -603,7 +852,7 @@ handle_interrupt() {
 
 trap handle_interrupt SIGINT SIGTERM
 
-# Load phase details
+# Load phase details with memory context
 get_phase_prompt() {
     local phase_num=$1
     local phase_content=""
@@ -622,8 +871,40 @@ get_phase_prompt() {
         tasks_content=$(cat "$TASKS_FILE")
     fi
     
+    # Build memory context prompt
+    local memory_context="
+MEMORY MANAGEMENT INSTRUCTIONS:
+1. ALWAYS check if a memory key exists before creating it:
+   - First use memory__retrieve_memory(key) to check
+   - Only use memory__create_memory if the key doesn't exist or needs updating
+   
+2. Use these standardized keys for phase $phase_num:
+   - 'phase_${phase_num}_overview' - Overview of what this phase accomplishes
+   - 'phase_${phase_num}_decisions' - Key decisions made
+   - 'phase_${phase_num}_interfaces' - Interfaces created for other phases
+   - 'phase_${phase_num}_complete' - Mark phase as complete with summary
+
+3. Retrieve context from previous phases:
+   - Always start by retrieving relevant previous phase data
+   - Use memory__retrieve_memory('phase_*_interfaces') to understand contracts
+   - Build upon existing architecture and decisions
+
+AVAILABLE MCP TOOLS:
+- memory__create_memory(key, value) - Save state (check existence first!)
+- memory__retrieve_memory(key) - Get saved state
+- sequential_thinking__think_about(problem) - Complex planning
+- filesystem__read_file/write_file - File operations
+- git__status/add/commit - Version control operations
+
+GIT WORKFLOW:
+- Use git__status to check current changes
+- Use git__add to stage files as you create them
+- Do NOT commit (the script will handle phase commits)"
+    
     # Combine with custom instructions and full spec
     echo "$phase_section
+
+$memory_context
 
 $CUSTOM_INSTRUCTIONS
 
@@ -654,11 +935,19 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}Error: git not found. Please install it first.${NC}"
+    exit 1
+fi
+
 # Create project directory
 if [ ! -d "$PROJECT_NAME" ]; then
     mkdir -p "$PROJECT_NAME"
 fi
 cd "$PROJECT_NAME"
+
+# Load memory keys
+load_memory_keys
 
 # Load or create state
 if load_state; then
@@ -668,13 +957,22 @@ if load_state; then
     echo ""
 else
     echo -e "${GREEN}🚀 Starting fresh build${NC}\n"
-fi
-
-# Phase 0: MCP Setup
-if [ $CURRENT_PHASE -eq 0 ]; then
+    
+    # Phase -2: MCP Setup
     setup_mcp_servers
+    
+    # Phase -1: Initialize with full analysis
+    init_project
+    
+    # Phase 0: Start with research and dependencies
+    start_project
+    
     CURRENT_PHASE=1
-    save_state 1 "ready" "MCP setup complete"
+    save_state 1 "ready" "Initialization complete"
+    
+    # Initial git commit
+    git add -A
+    git commit -m "Initial setup: MCP servers, analysis, and research completed" || true
 fi
 
 # Phase 1: Project Foundation and Structure
@@ -748,7 +1046,23 @@ if [ $CURRENT_PHASE -ge $TOTAL_PHASES ]; then
     echo -e "${CYAN}Total Cost: \$$TOTAL_COST${NC}"
     echo -e "${GREEN}All phases completed successfully!${NC}\n"
     
-    log_info "Next steps:"
+    # Final git operations
+    log_info "Creating final build summary..."
+    git add -A
+    git commit -m "Build completed: Claude Code Builder v2.3.0
+
+Final metrics:
+- Build time: $((elapsed/60))m $((elapsed%60))s
+- Total cost: \$$TOTAL_COST
+- All $TOTAL_PHASES phases completed successfully
+
+The project is ready for installation and use." || true
+    
+    # Show git log
+    echo -e "\n${CYAN}Git commit history:${NC}"
+    git log --oneline -10
+    
+    log_info "\nNext steps:"
     echo -e "  1. ${GREEN}cd $PROJECT_NAME${NC}"
     echo -e "  2. ${GREEN}pip install -e .${NC}"
     echo -e "  3. ${GREEN}claude-code-builder --help${NC}"
@@ -756,4 +1070,5 @@ if [ $CURRENT_PHASE -ge $TOTAL_PHASES ]; then
     
     echo -e "${YELLOW}📚 Check the README.md for detailed documentation${NC}"
     echo -e "${YELLOW}🧪 Run the test suite with: pytest tests/${NC}"
+    echo -e "${YELLOW}📊 View git history with: git log --oneline${NC}"
 fi
