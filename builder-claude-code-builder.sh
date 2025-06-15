@@ -135,6 +135,9 @@ else
     fi
 fi
 
+# Set MCP configuration file path
+MCP_CONFIG_FILE=".mcp.json"
+
 # Load external instructions if available
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -392,60 +395,112 @@ setup_mcp_servers() {
     log_phase "START" "Setting up MCP servers for Claude Code Builder"
     
     log_info "Configuring Model Context Protocol servers..."
-    log_info "MCP servers provide enhanced capabilities for Claude Code:"
     
-    # Check if MEM0_API_KEY is set
-    if [ -z "${MEM0_API_KEY:-}" ]; then
-        log_warning "MEM0_API_KEY not set. Please export MEM0_API_KEY to use Mem0 memory system."
-        log_info "Using standard memory server:"
-        log_info "  - Command: npx -y @modelcontextprotocol/server-memory"
-        log_info "  - Purpose: Key-value storage for build state and phase data"
-        log_info "  - Features: Simple persistence across phases"
-        MEMORY_SERVER_CONFIG='"memory": {
-"command": "npx",
-"args": ["-y", "@modelcontextprotocol/server-memory"],
-"description": "Store build progress, architectural decisions, and phase contexts"
-}'
+    # Check for Claude Desktop config using dynamic home directory
+    local claude_desktop_config="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+    
+    if [ -f "$claude_desktop_config" ]; then
+        log_success "Found Claude Desktop configuration at: $claude_desktop_config"
+        log_info "Using Claude Desktop MCP servers as base configuration..."
+        
+        # Copy the Claude Desktop config
+        cp "$claude_desktop_config" "$MCP_CONFIG_FILE"
+        
+        # Update filesystem paths to point to our output directory
+        # Use Python to modify JSON while preserving structure
+        python3 -c "
+import json
+import sys
+
+config_file = '$MCP_CONFIG_FILE'
+output_dir = '$OUTPUT_DIR'
+
+with open(config_file, 'r') as f:
+    config = json.load(f)
+
+# Update filesystem server to use our output directory
+if 'filesystem' in config.get('mcpServers', {}):
+    config['mcpServers']['filesystem']['args'] = [
+        '-y',
+        '@modelcontextprotocol/server-filesystem',
+        output_dir
+    ]
+
+# Ensure Mem0 API key is set if we have one
+mem0_key = '${MEM0_API_KEY:-}'
+if mem0_key and 'mem0' in config.get('mcpServers', {}):
+    if 'env' not in config['mcpServers']['mem0']:
+        config['mcpServers']['mem0']['env'] = {}
+    config['mcpServers']['mem0']['env']['MEM0_API_KEY'] = mem0_key
+
+with open(config_file, 'w') as f:
+    json.dump(config, f, indent=2)
+"
+        
+        log_info "Updated MCP configuration with project-specific settings"
+        
+        # Log which memory server is being used
+        if grep -q '"mem0"' "$MCP_CONFIG_FILE" && [ -n "${MEM0_API_KEY:-}" ]; then
+            log_success "Using Mem0 intelligent memory system from Claude Desktop config"
+        elif grep -q '"memory"' "$MCP_CONFIG_FILE"; then
+            log_info "Using standard memory server from Claude Desktop config"
+        fi
     else
-        log_success "MEM0_API_KEY detected. Using Mem0 for intelligent memory management."
-        log_info "Mem0 MCP server configuration:"
-        log_info "  - Command: npx -y @mem0/mcp"
-        log_info "  - API Key: ${MEM0_API_KEY:0:10}...${MEM0_API_KEY: -4}"
-        log_info "  - Purpose: Intelligent memory with semantic search"
-        log_info "  - Features: LLM-powered extraction, contradiction resolution, persistence"
-        MEMORY_SERVER_CONFIG='"mem0-mcp": {
-"command": "npx",
-"args": ["-y", "@mem0/mcp"],
-"env": {
-"MEM0_API_KEY": "'"$MEM0_API_KEY"'"
-},
-"description": "Intelligent memory with LLM-powered extraction and semantic search"
+        log_info "Claude Desktop config not found, using default configuration..."
+        
+        # Check if MEM0_API_KEY is set for fallback config
+        if [ -z "${MEM0_API_KEY:-}" ]; then
+            log_warning "MEM0_API_KEY not set. Please export MEM0_API_KEY to use Mem0 memory system."
+            log_info "Using standard memory server:"
+            log_info "  - Command: npx -y @modelcontextprotocol/server-memory"
+            log_info "  - Purpose: Key-value storage for build state and phase data"
+            log_info "  - Features: Simple persistence across phases"
+            MEMORY_SERVER_CONFIG='"memory": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-memory"],
+    "description": "Store build progress, architectural decisions, and phase contexts"
 }'
+        else
+            log_success "MEM0_API_KEY detected. Using Mem0 for intelligent memory management."
+            log_info "Mem0 MCP server configuration:"
+            log_info "  - Command: npx -y @mem0/mcp"
+            log_info "  - API Key: ${MEM0_API_KEY:0:10}...${MEM0_API_KEY: -4}"
+            log_info "  - Purpose: Intelligent memory with semantic search"
+            log_info "  - Features: LLM-powered extraction, contradiction resolution, persistence"
+            MEMORY_SERVER_CONFIG='"mem0-mcp": {
+    "command": "npx",
+    "args": ["-y", "@mem0/mcp"],
+    "env": {
+        "MEM0_API_KEY": "'"$MEM0_API_KEY"'"
+    },
+    "description": "Intelligent memory with LLM-powered extraction and semantic search"
+}'
+        fi
+        
+        # Create the MCP configuration file
+        {
+            echo '{'
+            echo '  "mcpServers": {'
+            echo "    $MEMORY_SERVER_CONFIG,"
+            echo '    "sequential-thinking": {'
+            echo '      "command": "npx",'
+            echo '      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],'
+            echo '      "description": "Plan complex implementations and dependencies"'
+            echo '    },'
+            echo '    "filesystem": {'
+            echo '      "command": "npx",'
+            echo '      "args": ["-y", "@modelcontextprotocol/server-filesystem", "--allowed-paths", "."],'
+            echo '      "description": "Enhanced file operations for complex project structure"'
+            echo '    },'
+            echo '    "git": {'
+            echo '      "command": "npx",'
+            echo '      "args": ["-y", "@modelcontextprotocol/server-git"],'
+            echo '      "description": "Git operations for version control and progress tracking"'
+            echo '    }'
+            echo '  }'
+            echo '}'
+        } > "$MCP_CONFIG_FILE"
     fi
-    
-    # Create the MCP configuration file
-    {
-        echo '{'
-        echo '"mcpServers": {'
-        echo "$MEMORY_SERVER_CONFIG,"
-        echo '"sequential-thinking": {'
-        echo '"command": "npx",'
-        echo '"args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],'
-        echo '"description": "Plan complex implementations and dependencies"'
-        echo '},'
-        echo '"filesystem": {'
-        echo '"command": "npx",'
-        echo '"args": ["-y", "@modelcontextprotocol/server-filesystem", "--allowed-paths", "."],'
-        echo '"description": "Enhanced file operations for complex project structure"'
-        echo '},'
-        echo '"git": {'
-        echo '"command": "npx",'
-        echo '"args": ["-y", "@modelcontextprotocol/server-git"],'
-        echo '"description": "Git operations for version control and progress tracking"'
-        echo '}'
-        echo '}'
-        echo '}'
-    } > .mcp.json
     
     # Log MCP server details
     log_info "MCP servers configured:"
@@ -604,10 +659,10 @@ discover_all_mcp_servers() {
                 server_commands+=("git__status" "git__diff" "git__commit" "git__log")
                 ;;
             *"mem0"*)
-                server_commands+=("mem0-mcp__add-memory" "mem0-mcp__search-memories" "mem0-mcp__list-memories")
+                server_commands+=("mem0-mcp__add-memory" "mem0-mcp__search-memories" "mem0-mcp__list-memories" "mem0-mcp__delete-memories")
                 ;;
             *"memory"*)
-                server_commands+=("memory__create_memory" "memory__retrieve_memory" "memory__list_memories")
+                server_commands+=("memory__create_memory" "memory__retrieve_memory" "memory__list_memories" "memory__delete_memory")
                 ;;
             *"fetch"*)
                 server_commands+=("fetch__fetch")
