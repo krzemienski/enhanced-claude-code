@@ -32,7 +32,7 @@ claude "Build me a Python package with 7 AI agents, MCP integration, and Rich UI
 ### How Commands Are Generated
 
 ```mermaid
-graph TD
+flowchart TD
     A[Project Specification] --> B[Orchestrator Script]
     B --> C{Phase Generator}
     C --> D[Phase 0: Analysis]
@@ -61,10 +61,6 @@ graph TD
     O --> P{Next Phase?}
     P -->|Yes| C
     P -->|No| Q[Build Complete]
-    
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style Q fill:#9f9,stroke:#333,stroke-width:2px
-    style L fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 This script generates and executes commands like:
@@ -152,7 +148,7 @@ Generated 66 whitelisted commands
 ### 3. **Resumable Builds**
 
 ```mermaid
-graph TD
+flowchart TD
     A[Run Build Script] --> B{Build State Exists?}
     B -->|No| C[Start Fresh Build]
     B -->|Yes| D[Load State File]
@@ -181,10 +177,6 @@ graph TD
     P -->|Yes| R[Success]
     
     Q --> N
-    
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style R fill:#9f9,stroke:#333,stroke-width:2px
-    style J fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 ```bash
@@ -240,7 +232,7 @@ sequenceDiagram
 ### Memory Flow Across Phases
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph P0[Phase 0]
         A0[Analyze Spec] --> B0[Research Libraries]
         B0 --> C0[Save to Mem0]
@@ -264,17 +256,12 @@ graph LR
     C0 -.->|Memory Persistence| D1
     F1 -.->|Memory Persistence| G2
     I2 -.->|Memory Persistence| J4
-    
-    style C0 fill:#ff9,stroke:#333,stroke-width:2px
-    style F1 fill:#ff9,stroke:#333,stroke-width:2px
-    style I2 fill:#ff9,stroke:#333,stroke-width:2px
-    style L4 fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 ### MCP Server Integration
 
 ```mermaid
-graph TB
+flowchart TB
     A[Bash Script] --> B[Discover NPM Packages]
     A --> C[Check Claude Desktop]
     
@@ -315,9 +302,6 @@ graph TB
     H --> T
     H --> U
     H --> V
-    
-    style J fill:#ff9,stroke:#333,stroke-width:2px
-    style G fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
 ### Critical Success Factors
@@ -369,7 +353,7 @@ From our actual builds:
 ## 📋 The 12-Phase Build Process
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph Research[Research & Planning]
         P0[Phase 0: Analysis & Research]
     end
@@ -410,11 +394,6 @@ graph LR
     P9 ==> P10
     P10 ==> P11
     P11 ==> P12
-    
-    style P0 fill:#f9f,stroke:#333,stroke-width:2px
-    style P3 fill:#9ff,stroke:#333,stroke-width:2px
-    style P4 fill:#9ff,stroke:#333,stroke-width:2px
-    style P12 fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
 ## 🔮 The Bigger Picture: Building the Universal Builder
