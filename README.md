@@ -61,6 +61,10 @@ flowchart TD
     O --> P{Next Phase?}
     P -->|Yes| C
     P -->|No| Q[Build Complete]
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style Q fill:#9f9,stroke:#333,stroke-width:2px
+    style L fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 This script generates and executes commands like:
@@ -177,6 +181,10 @@ flowchart TD
     P -->|Yes| R[Success]
     
     Q --> N
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style R fill:#9f9,stroke:#333,stroke-width:2px
+    style J fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 ```bash
@@ -233,22 +241,22 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    subgraph P0[Phase 0]
+    subgraph Phase0[Phase 0]
         A0[Analyze Spec] --> B0[Research Libraries]
         B0 --> C0[Save to Mem0]
     end
     
-    subgraph P1[Phase 1]
+    subgraph Phase1[Phase 1]
         D1[Search Memories] --> E1[Create Structure]
         E1 --> F1[Save Progress]
     end
     
-    subgraph P2[Phase 2]
+    subgraph Phase2[Phase 2]
         G2[Search Structure] --> H2[Create Models]
         H2 --> I2[Save Models]
     end
     
-    subgraph P4[Phase 4]
+    subgraph Phase4[Phase 4]
         J4[Search Models] --> K4[Create Agents]
         K4 --> L4[Save Agents]
     end
@@ -256,6 +264,11 @@ flowchart LR
     C0 -.->|Memory Persistence| D1
     F1 -.->|Memory Persistence| G2
     I2 -.->|Memory Persistence| J4
+    
+    style C0 fill:#ff9,stroke:#333,stroke-width:2px
+    style F1 fill:#ff9,stroke:#333,stroke-width:2px
+    style I2 fill:#ff9,stroke:#333,stroke-width:2px
+    style L4 fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 ### MCP Server Integration
@@ -285,7 +298,7 @@ flowchart TB
     
     K --> O[Key-Value Store]
     
-    subgraph Servers[Available Servers]
+    subgraph AvailableServers[Available Servers]
         P[filesystem]
         Q[github]
         R[sequential-thinking]
@@ -302,6 +315,9 @@ flowchart TB
     H --> T
     H --> U
     H --> V
+    
+    style J fill:#ff9,stroke:#333,stroke-width:2px
+    style G fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
 ### Critical Success Factors
@@ -354,28 +370,28 @@ From our actual builds:
 
 ```mermaid
 flowchart LR
-    subgraph Research[Research & Planning]
+    subgraph ResearchPlanning[Research & Planning]
         P0[Phase 0: Analysis & Research]
     end
     
-    subgraph Foundation
+    subgraph Foundation[Foundation]
         P1[Phase 1: Package Structure]
         P2[Phase 2: Data Models]
     end
     
-    subgraph Core[Core Systems]
+    subgraph CoreSystems[Core Systems]
         P3[Phase 3: MCP Integration]
         P4[Phase 4: 7 AI Agents]
         P5[Phase 5: Custom Instructions]
     end
     
-    subgraph Infrastructure
+    subgraph Infrastructure[Infrastructure]
         P6[Phase 6: Execution Engine]
         P7[Phase 7: Rich UI]
         P8[Phase 8: Validation]
     end
     
-    subgraph Polish[Polish & Delivery]
+    subgraph PolishDelivery[Polish & Delivery]
         P9[Phase 9: Utilities]
         P10[Phase 10: CLI Integration]
         P11[Phase 11: Testing]
@@ -394,6 +410,11 @@ flowchart LR
     P9 ==> P10
     P10 ==> P11
     P11 ==> P12
+    
+    style P0 fill:#f9f,stroke:#333,stroke-width:2px
+    style P3 fill:#9ff,stroke:#333,stroke-width:2px
+    style P4 fill:#9ff,stroke:#333,stroke-width:2px
+    style P12 fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
 ## 🔮 The Bigger Picture: Building the Universal Builder
