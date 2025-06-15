@@ -137,6 +137,41 @@ TASK:
 
 </details>
 
+## 🆕 Enhanced Features in v2.0
+
+### 1. **Initialize & Start Functions**
+The script now includes comprehensive initialization and dependency resolution:
+- **`init_project()`** - Analyzes all specifications and saves findings to memory
+- **`start_project()`** - Searches for documentation and resolves dependencies
+
+### 2. **Smart Memory Management**
+- Tracks all memory keys to prevent duplicates
+- Always checks if a key exists before creating
+- File-based storage for bash 3.2 compatibility
+- Persistent across phases with `.memory_keys/` directory
+
+### 3. **Git Integration**
+- Automatic git repository initialization
+- Comprehensive commits after each phase
+- Detailed commit messages with metrics
+- Full git history at build completion
+
+### 4. **Flexible Output Directory**
+```bash
+# Build in current directory (default)
+./builder-claude-code-builder.sh
+
+# Build in custom directory
+./builder-claude-code-builder.sh -o /path/to/output
+./builder-claude-code-builder.sh --output-dir ./build
+```
+
+### 5. **Production-Ready**
+- Works with bash 3.2+ (macOS default)
+- Robust error handling for edge cases
+- Proper cleanup and state management
+- Resume capability if interrupted
+
 ## 🎯 Key Differences Visualized
 
 ```mermaid
@@ -250,8 +285,12 @@ cat phases.md
 npm install -g @anthropic-ai/claude-code
 brew install jq  # or apt-get install jq
 
-# Run the build (watch the commands it generates!)
+# Run the build in current directory (default)
 ./builder-claude-code-builder.sh
+
+# OR specify a custom output directory
+./builder-claude-code-builder.sh -o /path/to/output
+./builder-claude-code-builder.sh --output-dir ./my-build
 
 # The script will show you EXACTLY what commands it runs
 # Watch how each phase builds on the previous one
