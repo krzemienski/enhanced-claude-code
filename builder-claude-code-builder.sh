@@ -68,6 +68,10 @@ MEMORY_KEYS_DIR=".memory_keys"
 # Output directory (can be overridden by CLI argument)
 OUTPUT_DIR=""
 
+# Global arrays for MCP discovery
+declare -a DISCOVERED_MCP_SERVERS
+declare -a MCP_SERVER_COMMANDS
+
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -1167,6 +1171,7 @@ run_claude_auto() {
         claude_cmd+=" --mcp-config .mcp.json"
     fi
     
+
     # Add whitelisted MCP commands if discovered
     if [ -n "${MCP_SERVER_COMMANDS:-}" ] && [ ${#MCP_SERVER_COMMANDS[@]} -gt 0 ]; then
         log_info "Whitelisting ${#MCP_SERVER_COMMANDS[@]} MCP commands..."
@@ -1174,6 +1179,8 @@ run_claude_auto() {
             claude_cmd+=" --mcp-allow $cmd"
         done
     fi
+    # Note: MCP tools are automatically available when using --dangerously-skip-permissions
+    # The MCP servers defined in .mcp.json will be loaded and their tools accessible
     
     claude_cmd+=" --dangerously-skip-permissions"
     claude_cmd+=" --output-format stream-json"
@@ -1183,6 +1190,11 @@ run_claude_auto() {
     # Log the full command (with sensitive data masked)
     local log_cmd=$(echo "$claude_cmd" | sed -E 's/(MEM0_API_KEY=")[^"]+"/\1[REDACTED]"/')
     log_info "Claude command: $log_cmd"
+    
+    # Also log if MCP commands were added
+    if [ ${#MCP_SERVER_COMMANDS[@]} -gt 0 ]; then
+        log_info "Whitelisted commands include: mem0-mcp__add-memory, mem0-mcp__search-memories, etc."
+    fi
     
     # Execute with enhanced parsing
     log_info "Starting Claude with model $MODEL..."
