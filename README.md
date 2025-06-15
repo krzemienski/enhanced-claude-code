@@ -33,7 +33,7 @@ The system discovers and utilizes all available MCP servers:
 ### 📊 Enhanced Architecture
 
 ```mermaid
-graph TD
+flowchart TD
     A[Project Specification] --> B[Initialization Phase]
     B --> C{Memory Backend}
     C -->|Mem0 Available| D[Mem0 Intelligent Memory]
@@ -61,8 +61,10 @@ graph TD
     G -.-> M
     G -.-> N
     
-    style D fill:#f9f,stroke:#333,stroke-width:2px
-    style L fill:#9ff,stroke:#333,stroke-width:2px
+    classDef highlight fill:#f9f,stroke:#333,stroke-width:2px
+    classDef secondary fill:#9ff,stroke:#333,stroke-width:2px
+    class D highlight
+    class L secondary
 ```
 
 ### 🚀 Build Process Flow
