@@ -1,0 +1,30 @@
+graph TD
+    A[Project Specification] --> B[Initialization Phase]
+    B --> C{Memory Backend}
+    C -->|Mem0 Available| D[Mem0 Intelligent Memory]
+    C -->|Fallback| E[Standard Memory Server]
+    
+    D --> F[Phase 0: Analysis & Research]
+    E --> F
+    
+    F --> G[Sequential Phases 1-12]
+    
+    G --> H[Phase Validation]
+    H -->|Pass| I[Git Commit]
+    H -->|Fail| J[Retry with Context]
+    
+    I --> K[Next Phase]
+    J --> G
+    
+    subgraph MCP_Servers
+        L[33 Available Servers]
+        M[66 Whitelisted Commands]
+        N[Dynamic Discovery]
+    end
+    
+    G -.-> L
+    G -.-> M
+    G -.-> N
+    
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style L fill:#9ff,stroke:#333,stroke-width:2px

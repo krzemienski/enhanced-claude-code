@@ -32,68 +32,11 @@ The system discovers and utilizes all available MCP servers:
 
 ### 📊 Enhanced Architecture
 
-```mermaid
-flowchart TD
-    A[Project Specification] --> B[Initialization Phase]
-    B --> C{Memory Backend}
-    C -->|Mem0 Available| D[Mem0 Intelligent Memory]
-    C -->|Fallback| E[Standard Memory Server]
-    
-    D --> F[Phase 0 Analysis and Research]
-    E --> F
-    
-    F --> G[Sequential Phases 1-12]
-    
-    G --> H[Phase Validation]
-    H -->|Pass| I[Git Commit]
-    H -->|Fail| J[Retry with Context]
-    
-    I --> K[Next Phase]
-    J --> G
-    
-    subgraph MCP_Servers
-        L[33 Available Servers]
-        M[66 Whitelisted Commands]
-        N[Dynamic Discovery]
-    end
-    
-    G -.-> L
-    G -.-> M
-    G -.-> N
-    
-    classDef highlight fill:#f9f,stroke:#333,stroke-width:2px
-    classDef secondary fill:#9ff,stroke:#333,stroke-width:2px
-    class D highlight
-    class L secondary
-```
+![Enhanced Architecture Diagram](diagrams/architecture.png)
 
 ### 🚀 Build Process Flow
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant B as Builder Script
-    participant C as Claude Desktop Config
-    participant M as MCP Servers
-    participant AI as Claude AI
-    
-    U->>B: Start build
-    B->>C: Load Claude Desktop config
-    C->>B: Return 13 MCP servers
-    B->>M: Initialize MCP servers
-    M->>B: Ready - mem0, filesystem, git, etc.
-    
-    loop For each phase 0-12
-        B->>AI: Execute phase with context
-        AI->>M: Store progress in Mem0
-        AI->>M: Use sequential thinking
-        AI->>M: File operations
-        AI->>B: Phase complete
-        B->>M: Git commit
-    end
-    
-    B->>U: Build complete
-```
+![Build Process Sequence Diagram](diagrams/sequence.png)
 
 ## Installation & Usage
 
