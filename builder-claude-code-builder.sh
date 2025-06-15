@@ -87,13 +87,12 @@ show_usage() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         -o|--output-dir)
-            if [[ -n "${2:-}" ]]; then
-                OUTPUT_DIR="$2"
-                shift 2
-            else
+            if [[ -z "${2:-}" ]]; then
                 echo -e "${RED}Error: --output-dir requires a directory path${NC}"
                 exit 1
             fi
+            OUTPUT_DIR="$2"
+            shift 2
             ;;
         -h|--help)
             show_usage
@@ -110,6 +109,11 @@ done
 if [ -z "$OUTPUT_DIR" ]; then
     OUTPUT_DIR="$(pwd)"
 else
+    # Validate the output directory path
+    if [[ "$OUTPUT_DIR" =~ [[:space:]] ]]; then
+        echo -e "${YELLOW}Warning: Output directory contains spaces. This may cause issues.${NC}"
+    fi
+    
     # Convert to absolute path if relative
     if [[ "$OUTPUT_DIR" = /* ]]; then
         # Already absolute path
@@ -117,6 +121,13 @@ else
     else
         # Relative path - make it absolute
         OUTPUT_DIR="$(pwd)/$OUTPUT_DIR"
+    fi
+    
+    # Ensure parent directory exists
+    local parent_dir=$(dirname "$OUTPUT_DIR")
+    if [ ! -d "$parent_dir" ]; then
+        echo -e "${RED}Error: Parent directory does not exist: $parent_dir${NC}"
+        exit 1
     fi
 fi
 
@@ -352,10 +363,17 @@ load_state() {
         return 1
     fi
     
-    CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE")
-    PHASE_RETRY_COUNT=$(jq -r '.retry_count // 0' "$STATE_FILE")
-    LAST_SESSION_ID=$(jq -r '.last_session_id // empty' "$STATE_FILE")
-    local saved_start_time=$(jq -r '.start_time // empty' "$STATE_FILE")
+    # Validate JSON before parsing
+    if ! jq . "$STATE_FILE" >/dev/null 2>&1; then
+        log_warning "State file is corrupted, starting fresh"
+        rm -f "$STATE_FILE"
+        return 1
+    fi
+    
+    CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+    PHASE_RETRY_COUNT=$(jq -r '.retry_count // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+    LAST_SESSION_ID=$(jq -r '.last_session_id // empty' "$STATE_FILE" 2>/dev/null || echo "")
+    local saved_start_time=$(jq -r '.start_time // empty' "$STATE_FILE" 2>/dev/null || echo "")
     
     if [ -n "$saved_start_time" ]; then
         START_TIME=$saved_start_time
@@ -724,16 +742,24 @@ run_claude_auto() {
     log_info "Starting Claude with model $MODEL..."
     echo ""
     
-    cat "$prompt_file" | eval $claude_cmd 2>&1 | parse_claude_stream
+    # Execute Claude with proper error handling
+    local temp_output=$(mktemp)
+    cat "$prompt_file" | eval $claude_cmd 2>"$temp_output" | parse_claude_stream
     local exit_code=${PIPESTATUS[1]}
     
     echo -e "\n"
-    rm -f "$prompt_file"
     
+    # Check for errors
     if [ $exit_code -ne 0 ]; then
         log_phase "ERROR" "Phase $phase_num failed (exit code: $exit_code)"
+        if [ -s "$temp_output" ]; then
+            log_error "Error details: $(cat "$temp_output")"
+        fi
+        rm -f "$prompt_file" "$temp_output"
         return 1
     fi
+    
+    rm -f "$prompt_file" "$temp_output"
     
     log_phase "SUCCESS" "Phase $phase_num completed"
     return 0
@@ -861,10 +887,11 @@ validate_phase() {
 commit_phase() {
     local phase_num=$1
     local phase_description=$2
-    # Get list of added files safely
+    # Get list of added files safely, handling filenames with spaces
     local added_files=""
     if git status --porcelain | grep -q '^A'; then
-        added_files=$(git status --porcelain | grep '^A' | awk '{print "- " $2}')
+        # Use cut to handle filenames with spaces properly
+        added_files=$(git status --porcelain | grep '^A' | cut -c4- | sed 's/^/- /')
     else
         added_files="- No new files (modifications only)"
     fi
@@ -890,8 +917,8 @@ Build metrics:
     # Stage all changes
     git add -A
     
-    # Create commit
-    git commit -m "$commit_message" || {
+    # Create commit with proper escaping
+    git commit -m "$(printf '%s' "$commit_message")" || {
         log_warning "No changes to commit for phase $phase_num"
         return 0
     }
@@ -903,6 +930,13 @@ Build metrics:
 execute_phase_with_retry() {
     local phase_num=$1
     local phase_description=$2
+    
+    # Validate phase number
+    if [[ ! "$phase_num" =~ ^[0-9]+$ ]] || [ "$phase_num" -lt 1 ] || [ "$phase_num" -gt "$TOTAL_PHASES" ]; then
+        log_error "Invalid phase number: $phase_num"
+        return 1
+    fi
+    
     local next_phase=$((phase_num + 1))
     local validation_attempts=0
     local phase_complete=false
@@ -932,6 +966,12 @@ execute_phase_with_retry() {
             fi
         else
             log_error "Claude execution failed for Phase $phase_num"
+            echo -e "${YELLOW}Possible causes:${NC}"
+            echo -e "  - Network connectivity issues"
+            echo -e "  - Invalid API credentials"
+            echo -e "  - Rate limiting"
+            echo -e "  - Claude service unavailable"
+            echo -e "\n${CYAN}Check the logs and try again.${NC}"
             exit 1
         fi
     done
@@ -941,11 +981,20 @@ execute_phase_with_retry() {
 handle_interrupt() {
     echo -e "\n\n${RED}⚠️  Build interrupted!${NC}"
     echo -e "${YELLOW}Progress saved at phase $CURRENT_PHASE/$TOTAL_PHASES${NC}"
-    save_state $CURRENT_PHASE "interrupted" "User interrupted"
-    exit 1
+    
+    # Save state before exiting
+    save_state $CURRENT_PHASE "interrupted" "User interrupted" "$PHASE_RETRY_COUNT"
+    
+    # Clean up any temporary files
+    rm -f /tmp/tmp.*
+    
+    echo -e "${CYAN}You can resume by running the script again in the same directory.${NC}"
+    exit 130  # Standard exit code for SIGINT
 }
 
+# Set up signal handlers
 trap handle_interrupt SIGINT SIGTERM
+trap 'rm -f /tmp/tmp.*' EXIT
 
 # Load phase details with memory context
 get_phase_prompt() {
@@ -1028,19 +1077,41 @@ echo -e "${YELLOW}Building an enhanced production-ready project builder${NC}"
 echo -e "${CYAN}Model: $MODEL | Phases: $TOTAL_PHASES${NC}\n"
 
 # Check prerequisites
-if ! command -v claude &> /dev/null; then
-    echo -e "${RED}Error: Claude Code CLI not found. Please install it first:${NC}"
-    echo -e "${YELLOW}npm install -g @anthropic-ai/claude-code${NC}"
-    exit 1
+check_prerequisite() {
+    local cmd=$1
+    local install_msg=$2
+    
+    if ! command -v "$cmd" &> /dev/null; then
+        echo -e "${RED}Error: $cmd not found.${NC}"
+        if [ -n "$install_msg" ]; then
+            echo -e "${YELLOW}$install_msg${NC}"
+        fi
+        return 1
+    fi
+    return 0
+}
+
+# Check all required tools
+MISSING_PREREQS=false
+
+if ! check_prerequisite "claude" "Install with: npm install -g @anthropic-ai/claude-code"; then
+    MISSING_PREREQS=true
 fi
 
-if ! command -v jq &> /dev/null; then
-    echo -e "${RED}Error: jq not found. Please install it first.${NC}"
-    exit 1
+if ! check_prerequisite "jq" "Install with: brew install jq (macOS) or apt-get install jq (Linux)"; then
+    MISSING_PREREQS=true
 fi
 
-if ! command -v git &> /dev/null; then
-    echo -e "${RED}Error: git not found. Please install it first.${NC}"
+if ! check_prerequisite "git" "Install git from https://git-scm.com/downloads"; then
+    MISSING_PREREQS=true
+fi
+
+if ! check_prerequisite "npx" "Install Node.js from https://nodejs.org/"; then
+    MISSING_PREREQS=true
+fi
+
+if [ "$MISSING_PREREQS" = true ]; then
+    echo -e "\n${RED}Missing required prerequisites. Please install them and try again.${NC}"
     exit 1
 fi
 
