@@ -31,6 +31,11 @@ claude "Build me a Python package with 7 AI agents, MCP integration, and Rich UI
 
 ### How Commands Are Generated
 
+> **Note**: If the Mermaid diagrams below are not rendering on GitHub, you can:
+> - View them locally by cloning the repo
+> - Use a Mermaid live editor: https://mermaid.live
+> - Install a browser extension for Mermaid rendering
+
 ```mermaid
 flowchart TD
     A[Project Specification] --> B[Orchestrator Script]
