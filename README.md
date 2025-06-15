@@ -241,22 +241,22 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    subgraph Phase 0
+    subgraph P0[Phase 0]
         A0[Analyze Spec] --> B0[Research Libraries]
         B0 --> C0[Save to Mem0]
     end
     
-    subgraph Phase 1
+    subgraph P1[Phase 1]
         D1[Search Memories] --> E1[Create Structure]
         E1 --> F1[Save Progress]
     end
     
-    subgraph Phase 2
+    subgraph P2[Phase 2]
         G2[Search Structure] --> H2[Create Models]
         H2 --> I2[Save Models]
     end
     
-    subgraph Phase 4
+    subgraph P4[Phase 4]
         J4[Search Models] --> K4[Create Agents]
         K4 --> L4[Save Agents]
     end
@@ -298,7 +298,7 @@ graph TB
     
     K --> O[Key-Value Store]
     
-    subgraph Available Servers
+    subgraph Servers[Available Servers]
         P[filesystem]
         Q[github]
         R[sequential-thinking]
@@ -370,7 +370,7 @@ From our actual builds:
 
 ```mermaid
 graph LR
-    subgraph "Research & Planning"
+    subgraph Research[Research & Planning]
         P0[Phase 0: Analysis & Research]
     end
     
@@ -379,7 +379,7 @@ graph LR
         P2[Phase 2: Data Models]
     end
     
-    subgraph "Core Systems"
+    subgraph Core[Core Systems]
         P3[Phase 3: MCP Integration]
         P4[Phase 4: 7 AI Agents]
         P5[Phase 5: Custom Instructions]
@@ -391,7 +391,7 @@ graph LR
         P8[Phase 8: Validation]
     end
     
-    subgraph "Polish & Delivery"
+    subgraph Polish[Polish & Delivery]
         P9[Phase 9: Utilities]
         P10[Phase 10: CLI Integration]
         P11[Phase 11: Testing]
