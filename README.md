@@ -31,7 +31,41 @@ claude "Build me a Python package with 7 AI agents, MCP integration, and Rich UI
 
 ### How Commands Are Generated
 
-![Command Generation](diagrams/command-generation.png)
+```mermaid
+graph TD
+    A[Project Specification] --> B[Orchestrator Script]
+    B --> C{Phase Generator}
+    C --> D[Phase 0: Analysis]
+    C --> E[Phase 1-12: Build]
+    
+    D --> F[Generate Claude Command]
+    E --> F
+    
+    F --> G[Inject Memory Tools]
+    F --> H[Add MCP Config]
+    F --> I[Set Max Turns]
+    
+    G --> J[Execute with Claude CLI]
+    H --> J
+    I --> J
+    
+    J --> K[Claude Uses Tools]
+    K --> L[Mem0 Search/Store]
+    K --> M[Sequential Thinking]
+    K --> N[File Operations]
+    
+    L --> O[Git Commit]
+    M --> O
+    N --> O
+    
+    O --> P{Next Phase?}
+    P -->|Yes| C
+    P -->|No| Q[Build Complete]
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style Q fill:#9f9,stroke:#333,stroke-width:2px
+    style L fill:#ff9,stroke:#333,stroke-width:2px
+```
 
 This script generates and executes commands like:
 
@@ -117,7 +151,41 @@ Generated 66 whitelisted commands
 
 ### 3. **Resumable Builds**
 
-![Resume Flow](diagrams/resume-flow.png)
+```mermaid
+graph TD
+    A[Run Build Script] --> B{Build State Exists?}
+    B -->|No| C[Start Fresh Build]
+    B -->|Yes| D[Load State File]
+    
+    D --> E[Read Last Phase]
+    D --> F[Load Git History]
+    D --> G[Check Mem0 Status]
+    
+    E --> H{Resume from Phase N}
+    F --> H
+    G --> H
+    
+    H --> I[Restore Context]
+    I --> J[Search Previous Memories]
+    J --> K[Continue Building]
+    
+    C --> L[Phase 0: Analysis]
+    K --> M[Phase N+1]
+    
+    L --> N[Save State]
+    M --> N
+    
+    N --> O[Git Commit]
+    O --> P{Build Complete?}
+    P -->|No| Q[Next Phase]
+    P -->|Yes| R[Success]
+    
+    Q --> N
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style R fill:#9f9,stroke:#333,stroke-width:2px
+    style J fill:#ff9,stroke:#333,stroke-width:2px
+```
 
 ```bash
 # Build interrupted at phase 3? No problem:
@@ -141,15 +209,116 @@ Git commit: 73 files changed, 892 insertions
 
 ### The Orchestration Pattern
 
-![Orchestration Flow](diagrams/orchestration-flow.png)
+```mermaid
+sequenceDiagram
+    participant User
+    participant Script as Bash Script
+    participant Claude
+    participant Mem0
+    participant MCP as MCP Servers
+    participant Git
+    
+    User->>Script: Run build command
+    Script->>Script: Load specifications
+    Script->>Script: Setup MCP config
+    
+    loop For each phase
+        Script->>Claude: Execute with prompt + tools
+        Claude->>Mem0: Search previous context
+        Mem0-->>Claude: Return memories
+        Claude->>MCP: Use tools (filesystem, etc)
+        MCP-->>Claude: Tool results
+        Claude->>Mem0: Store new memories
+        Claude->>Git: Commit changes
+        Script->>Script: Validate phase
+        Script->>Script: Update state
+    end
+    
+    Script-->>User: Build complete!
+```
 
 ### Memory Flow Across Phases
 
-![Memory Flow Diagram](diagrams/memory-flow.png)
+```mermaid
+graph LR
+    subgraph Phase 0
+        A0[Analyze Spec] --> B0[Research Libraries]
+        B0 --> C0[Save to Mem0]
+    end
+    
+    subgraph Phase 1
+        D1[Search Memories] --> E1[Create Structure]
+        E1 --> F1[Save Progress]
+    end
+    
+    subgraph Phase 2
+        G2[Search Structure] --> H2[Create Models]
+        H2 --> I2[Save Models]
+    end
+    
+    subgraph Phase 4
+        J4[Search Models] --> K4[Create Agents]
+        K4 --> L4[Save Agents]
+    end
+    
+    C0 -.->|Memory Persistence| D1
+    F1 -.->|Memory Persistence| G2
+    I2 -.->|Memory Persistence| J4
+    
+    style C0 fill:#ff9,stroke:#333,stroke-width:2px
+    style F1 fill:#ff9,stroke:#333,stroke-width:2px
+    style I2 fill:#ff9,stroke:#333,stroke-width:2px
+    style L4 fill:#ff9,stroke:#333,stroke-width:2px
+```
 
 ### MCP Server Integration
 
-![MCP Integration](diagrams/mcp-integration.png)
+```mermaid
+graph TB
+    A[Bash Script] --> B[Discover NPM Packages]
+    A --> C[Check Claude Desktop]
+    
+    B --> D[Found 20+ MCP Servers]
+    C --> E[Found 13 Configured]
+    
+    D --> F[Generate Whitelist]
+    E --> F
+    
+    F --> G[66 Allowed Commands]
+    
+    G --> H[Create .mcp.json]
+    
+    H --> I{Memory Backend?}
+    I -->|Mem0 Available| J[Mem0 Server]
+    I -->|Fallback| K[Standard Memory]
+    
+    J --> L[Semantic Search]
+    J --> M[LLM Extraction]
+    J --> N[Contradiction Resolution]
+    
+    K --> O[Key-Value Store]
+    
+    subgraph Available Servers
+        P[filesystem]
+        Q[github]
+        R[sequential-thinking]
+        S[firecrawl-mcp]
+        T[Context7]
+        U[taskmaster-ai]
+        V[desktop-commander]
+    end
+    
+    H --> P
+    H --> Q
+    H --> R
+    H --> S
+    H --> T
+    H --> U
+    H --> V
+    
+    style J fill:#ff9,stroke:#333,stroke-width:2px
+    style G fill:#9f9,stroke:#333,stroke-width:2px
+```
 
 ### Critical Success Factors
 
@@ -199,7 +368,54 @@ From our actual builds:
 
 ## 📋 The 12-Phase Build Process
 
-![Build Phases](diagrams/build-phases.png)
+```mermaid
+graph LR
+    subgraph "Research & Planning"
+        P0[Phase 0: Analysis & Research]
+    end
+    
+    subgraph Foundation
+        P1[Phase 1: Package Structure]
+        P2[Phase 2: Data Models]
+    end
+    
+    subgraph "Core Systems"
+        P3[Phase 3: MCP Integration]
+        P4[Phase 4: 7 AI Agents]
+        P5[Phase 5: Custom Instructions]
+    end
+    
+    subgraph Infrastructure
+        P6[Phase 6: Execution Engine]
+        P7[Phase 7: Rich UI]
+        P8[Phase 8: Validation]
+    end
+    
+    subgraph "Polish & Delivery"
+        P9[Phase 9: Utilities]
+        P10[Phase 10: CLI Integration]
+        P11[Phase 11: Testing]
+        P12[Phase 12: Documentation]
+    end
+    
+    P0 ==> P1
+    P1 ==> P2
+    P2 ==> P3
+    P3 ==> P4
+    P4 ==> P5
+    P5 ==> P6
+    P6 ==> P7
+    P7 ==> P8
+    P8 ==> P9
+    P9 ==> P10
+    P10 ==> P11
+    P11 ==> P12
+    
+    style P0 fill:#f9f,stroke:#333,stroke-width:2px
+    style P3 fill:#9ff,stroke:#333,stroke-width:2px
+    style P4 fill:#9ff,stroke:#333,stroke-width:2px
+    style P12 fill:#9f9,stroke:#333,stroke-width:2px
+```
 
 ## 🔮 The Bigger Picture: Building the Universal Builder
 
