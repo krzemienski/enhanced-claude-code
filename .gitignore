@@ -1,0 +1,36 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Build outputs
+/claude-code-builder/
+/build/
+/dist/
+
+# Test outputs
+test-output.log
+build_progress.log
+phase_validation.log
+test-mcp*.sh
+.mcp.json
+
+# State files
+.claude-builder-state.json
+.memory_keys.json
+.memory_keys/

@@ -651,9 +651,9 @@ discover_all_mcp_servers() {
         esac
     done
     
-    # Export for use in other functions - use global variables
-    DISCOVERED_MCP_SERVERS=("${discovered_servers[@]}")
-    MCP_SERVER_COMMANDS=("${server_commands[@]}")
+    # Export for use in other functions
+    export DISCOVERED_MCP_SERVERS=("${discovered_servers[@]}")
+    export MCP_SERVER_COMMANDS=("${server_commands[@]}")
     
     log_info "Discovered ${#discovered_servers[@]} MCP servers"
     log_info "Generated ${#server_commands[@]} whitelisted commands"
@@ -1171,6 +1171,14 @@ run_claude_auto() {
         claude_cmd+=" --mcp-config .mcp.json"
     fi
     
+
+    # Add whitelisted MCP commands if discovered
+    if [ -n "${MCP_SERVER_COMMANDS:-}" ] && [ ${#MCP_SERVER_COMMANDS[@]} -gt 0 ]; then
+        log_info "Whitelisting ${#MCP_SERVER_COMMANDS[@]} MCP commands..."
+        for cmd in "${MCP_SERVER_COMMANDS[@]}"; do
+            claude_cmd+=" --mcp-allow $cmd"
+        done
+    fi
     # Note: MCP tools are automatically available when using --dangerously-skip-permissions
     # The MCP servers defined in .mcp.json will be loaded and their tools accessible
     
