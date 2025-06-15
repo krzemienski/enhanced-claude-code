@@ -463,13 +463,13 @@ with open(config_file, 'w') as f:
         else
             log_success "MEM0_API_KEY detected. Using Mem0 for intelligent memory management."
             log_info "Mem0 MCP server configuration:"
-            log_info "  - Command: npx -y @mem0/mcp"
+            log_info "  - Command: npx -y @mem0/mcp-server"
             log_info "  - API Key: ${MEM0_API_KEY:0:10}...${MEM0_API_KEY: -4}"
             log_info "  - Purpose: Intelligent memory with semantic search"
             log_info "  - Features: LLM-powered extraction, contradiction resolution, persistence"
             MEMORY_SERVER_CONFIG='"mem0-mcp": {
     "command": "npx",
-    "args": ["-y", "@mem0/mcp"],
+    "args": ["-y", "@mem0/mcp-server"],
     "env": {
         "MEM0_API_KEY": "'"$MEM0_API_KEY"'"
     },
@@ -630,7 +630,7 @@ discover_all_mcp_servers() {
         "@modelcontextprotocol/server-brave-search"
         "@modelcontextprotocol/server-google-maps"
         "@anthropic/server-evals"
-        "@mem0/mcp"
+        "@mem0/mcp-server"
         "@shimizu/mcp-server-perplexity"
         "mcp-server-linear"
         "mcp-server-notion"
