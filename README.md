@@ -237,15 +237,15 @@ You will find:
 
 ## 🛠️ The Magic: MCP Servers
 
-The script configures THREE MCP servers that transform Claude's capabilities:
+The script configures FOUR MCP servers that transform Claude's capabilities:
 
 ```json
 [
   {
-    "id": "memory",
+    "id": "mem0-mcp",  // or "memory" if MEM0_API_KEY not set
     "command": "npx",
-    "arguments": ["-y", "@modelcontextprotocol/server-memory"],
-    "description": "Persistent memory across all phases"
+    "arguments": ["-y", "@mem0/mcp"],
+    "description": "Intelligent memory with semantic search (when MEM0_API_KEY is set)"
   },
   {
     "id": "sequential-thinking",
@@ -256,10 +256,33 @@ The script configures THREE MCP servers that transform Claude's capabilities:
   {
     "id": "filesystem",
     "command": "npx",
-    "arguments": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"],
+    "arguments": ["-y", "@modelcontextprotocol/server-filesystem", "."],
     "description": "Enhanced file operations"
+  },
+  {
+    "id": "git",
+    "command": "npx",
+    "arguments": ["-y", "@modelcontextprotocol/server-git"],
+    "description": "Git operations for version control"
   }
 ]
+```
+
+### 🧠 NEW: Mem0 Integration
+
+When you set `MEM0_API_KEY`, the builder uses Mem0's intelligent memory system:
+
+```bash
+# Enable Mem0 for semantic memory search
+export MEM0_API_KEY="your-mem0-api-key"
+
+# Now memories are stored with AI understanding:
+# Instead of: memory__create_memory('phase_1_complete', 'true')
+# You get: mem0-mcp__add-memory('Phase 1: Created project foundation with...')
+
+# Search semantically instead of by exact keys:
+# Instead of: memory__retrieve_memory('phase_1_interfaces')
+# You can: mem0-mcp__search-memories('interfaces created in phase 1')
 ```
 
 ## 🎓 Tutorial: Try It Yourself
@@ -284,6 +307,9 @@ cat phases.md
 # Prerequisites
 npm install -g @anthropic-ai/claude-code
 brew install jq  # or apt-get install jq
+
+# Optional: Enable Mem0 intelligent memory
+export MEM0_API_KEY="your-mem0-api-key"
 
 # Run the build in current directory (default)
 ./builder-claude-code-builder.sh
