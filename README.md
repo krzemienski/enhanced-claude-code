@@ -474,6 +474,60 @@ export MEM0_API_KEY="your-key"
    💭 Breaking down into: message passing, state management...
    ```
 
+## 🛠️ Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph UserInterface[User Interface]
+        CLI[CLI Command]
+        Config[Configuration]
+    end
+    
+    subgraph Orchestrator[Orchestrator Layer]
+        Script[Bash Script]
+        PhaseManager[Phase Manager]
+        StateManager[State Manager]
+    end
+    
+    subgraph MCPLayer[MCP Integration Layer]
+        Discovery[Server Discovery]
+        Whitelist[Command Whitelist]
+        ConfigGen[Config Generator]
+    end
+    
+    subgraph ExecutionLayer[Execution Layer]
+        ClaudeAPI[Claude API]
+        ToolExecution[Tool Execution]
+        Validation[Validation]
+    end
+    
+    subgraph PersistenceLayer[Persistence Layer]
+        Mem0DB[(Mem0 Memory)]
+        GitRepo[(Git Repository)]
+        StateFile[(State File)]
+    end
+    
+    CLI --> Script
+    Config --> Script
+    Script --> PhaseManager
+    Script --> StateManager
+    
+    PhaseManager --> Discovery
+    Discovery --> Whitelist
+    Whitelist --> ConfigGen
+    
+    ConfigGen --> ClaudeAPI
+    ClaudeAPI --> ToolExecution
+    ToolExecution --> Validation
+    
+    ToolExecution --> Mem0DB
+    Validation --> GitRepo
+    StateManager --> StateFile
+    
+    style Mem0DB fill:#ff9,stroke:#333,stroke-width:2px
+    style ClaudeAPI fill:#9ff,stroke:#333,stroke-width:2px
+```
+
 ## 🎓 Key Learnings
 
 1. **Memory Changes Everything**
