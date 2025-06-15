@@ -51,7 +51,7 @@ graph TD
     I --> K[Next Phase]
     J --> G
     
-    subgraph "MCP Servers"
+    subgraph MCP_Servers
         L[33 Available Servers]
         M[66 Whitelisted Commands]
         N[Dynamic Discovery]
@@ -80,9 +80,9 @@ sequenceDiagram
     B->>C: Load Claude Desktop config
     C->>B: Return 13 MCP servers
     B->>M: Initialize MCP servers
-    M->>B: Ready (mem0, filesystem, git, etc.)
+    M->>B: Ready - mem0, filesystem, git, etc.
     
-    loop For each phase (0-12)
+    loop For each phase 0-12
         B->>AI: Execute phase with context
         AI->>M: Store progress in Mem0
         AI->>M: Use sequential thinking
