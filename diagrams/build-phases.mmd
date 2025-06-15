@@ -1,0 +1,46 @@
+graph LR
+    subgraph "Research & Planning"
+        P0[Phase 0: Analysis & Research]
+    end
+    
+    subgraph "Foundation"
+        P1[Phase 1: Package Structure]
+        P2[Phase 2: Data Models]
+    end
+    
+    subgraph "Core Systems"
+        P3[Phase 3: MCP Integration]
+        P4[Phase 4: 7 AI Agents]
+        P5[Phase 5: Custom Instructions]
+    end
+    
+    subgraph "Infrastructure"
+        P6[Phase 6: Execution Engine]
+        P7[Phase 7: Rich UI]
+        P8[Phase 8: Validation]
+    end
+    
+    subgraph "Polish & Delivery"
+        P9[Phase 9: Utilities]
+        P10[Phase 10: CLI Integration]
+        P11[Phase 11: Testing]
+        P12[Phase 12: Documentation]
+    end
+    
+    P0 ==> P1
+    P1 ==> P2
+    P2 ==> P3
+    P3 ==> P4
+    P4 ==> P5
+    P5 ==> P6
+    P6 ==> P7
+    P7 ==> P8
+    P8 ==> P9
+    P9 ==> P10
+    P10 ==> P11
+    P11 ==> P12
+    
+    style P0 fill:#f9f,stroke:#333,stroke-width:2px
+    style P3 fill:#9ff,stroke:#333,stroke-width:2px
+    style P4 fill:#9ff,stroke:#333,stroke-width:2px
+    style P12 fill:#9f9,stroke:#333,stroke-width:2px

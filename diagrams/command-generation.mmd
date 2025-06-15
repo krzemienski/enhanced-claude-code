@@ -1,0 +1,34 @@
+sequenceDiagram
+    participant BS as Bash Script
+    participant ENV as Environment
+    participant MCP as MCP Config
+    participant CMD as Generated Command
+    
+    BS->>ENV: Check MEM0_API_KEY
+    ENV->>BS: API Key Found
+    BS->>MCP: Load .mcp.json
+    MCP->>BS: 13 servers configured
+    
+    BS->>BS: get_phase_prompt()
+    
+    Note over BS: Phase 3 Example
+    
+    BS->>CMD: claude \
+    BS->>CMD: --model claude-opus-4
+    BS->>CMD: --mcp-config .mcp.json
+    BS->>CMD: --max-turns 50
+    BS->>CMD: --output-format stream-json
+    
+    BS->>CMD: "Phase 3/12: MCP System
+    BS->>CMD: AVAILABLE TOOLS:
+    BS->>CMD: - mem0__search_memory
+    BS->>CMD: - mem0__add_memory
+    BS->>CMD: - sequential_thinking__think
+    BS->>CMD: - filesystem__write_file
+    BS->>CMD: 
+    BS->>CMD: MANDATORY STEPS:
+    BS->>CMD: 1. Search previous work
+    BS->>CMD: 2. Plan with thinking
+    BS->>CMD: 3. Save all progress"
+    
+    CMD->>CMD: Execute with Context

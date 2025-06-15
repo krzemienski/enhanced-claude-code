@@ -1,0 +1,28 @@
+graph TB
+    subgraph "Bash Orchestrator"
+        A[Read Spec Files] --> B[Load Previous State]
+        B --> C[Generate Phase Prompt]
+        C --> D[Include Tool List]
+        D --> E[Add Memory Context]
+    end
+    
+    E --> F[Execute Claude Command]
+    
+    subgraph "Claude Execution"
+        F --> G[Load Memories]
+        G --> H[Sequential Thinking]
+        H --> I[Generate Code]
+        I --> J[Save to Memory]
+        J --> K[Git Commit]
+    end
+    
+    K --> L{Phase Complete?}
+    L -->|No| M[Retry with Context]
+    L -->|Yes| N[Next Phase]
+    
+    M --> F
+    N --> C
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style G fill:#9ff,stroke:#333,stroke-width:2px
+    style J fill:#9ff,stroke:#333,stroke-width:2px

@@ -1,0 +1,32 @@
+graph TD
+    A[Run Script] --> B{State File Exists?}
+    
+    B -->|No| C[Fresh Build]
+    C --> D[Phase 0: Analysis]
+    
+    B -->|Yes| E[Load State]
+    E --> F[Read .claude-builder-state.json]
+    F --> G{Which Phase?}
+    
+    G -->|Phase 0| H[Advance to Phase 1]
+    G -->|Phase 1-11| I[Resume Current Phase]
+    G -->|Phase 12| J[Build Complete]
+    
+    H --> K[Continue Build]
+    I --> K
+    
+    K --> L[Load Memories]
+    L --> M[Execute Phase]
+    
+    M --> N{Success?}
+    N -->|Yes| O[Save State]
+    N -->|No| P[Retry with Context]
+    
+    O --> Q[Git Commit]
+    Q --> R[Next Phase]
+    
+    P --> M
+    
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+    style L fill:#9ff,stroke:#333,stroke-width:2px
+    style O fill:#9f9,stroke:#333,stroke-width:2px

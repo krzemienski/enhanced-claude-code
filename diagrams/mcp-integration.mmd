@@ -1,0 +1,33 @@
+graph TD
+    A[Claude Desktop Config] --> B[13 Pre-configured Servers]
+    C[NPM Global Packages] --> D[20 Additional Servers]
+    
+    B --> E[MCP Discovery Process]
+    D --> E
+    
+    E --> F[33 Total Servers Found]
+    F --> G[Generate Whitelist]
+    G --> H[66 Allowed Commands]
+    
+    subgraph "Active During Build"
+        I[mem0 - Intelligent Memory]
+        J[sequential-thinking - Reasoning]
+        K[filesystem - File Operations]
+        L[git - Version Control]
+        M[firecrawl - Web Research]
+        N[Context7 - Library Docs]
+        O[taskmaster - Task Management]
+        P[desktop-commander - System Ops]
+    end
+    
+    H --> I
+    H --> J
+    H --> K
+    H --> L
+    H --> M
+    H --> N
+    H --> O
+    H --> P
+    
+    style I fill:#f9f,stroke:#333,stroke-width:4px
+    style J fill:#9ff,stroke:#333,stroke-width:2px

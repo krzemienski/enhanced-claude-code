@@ -1,0 +1,32 @@
+graph LR
+    subgraph "Phase 0: Analysis"
+        A0[Analyze Spec] --> B0[Research Dependencies]
+        B0 --> C0[Save 47 Memories]
+    end
+    
+    subgraph "Phase 1: Foundation"
+        D1[Search: project structure] --> E1[Found 12 memories]
+        E1 --> F1[Create Structure]
+        F1 --> G1[Save 23 new memories]
+    end
+    
+    subgraph "Phase 2: Models"
+        H2[Search: architecture] --> I2[Found 18 memories]
+        I2 --> J2[Create Models]
+        J2 --> K2[Save model schemas]
+    end
+    
+    subgraph "Phase 3: MCP"
+        L3[Search: models + structure] --> M3[Found 35 memories]
+        M3 --> N3[Build MCP Client]
+        N3 --> O3[Save integration points]
+    end
+    
+    C0 -.->|Mem0 Semantic Search| D1
+    G1 -.->|Persists| H2
+    K2 -.->|Persists| L3
+    
+    style C0 fill:#f9f,stroke:#333,stroke-width:2px
+    style G1 fill:#f9f,stroke:#333,stroke-width:2px
+    style K2 fill:#f9f,stroke:#333,stroke-width:2px
+    style O3 fill:#f9f,stroke:#333,stroke-width:2px
