@@ -804,6 +804,8 @@ AVAILABLE MCP TOOLS:
 - filesystem__read_file(path) - Read specification files"
     fi
 
+    analysis_prompt+="
+
 FULL SPECIFICATION:
 $FULL_SPEC
 
