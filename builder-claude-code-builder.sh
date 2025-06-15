@@ -1700,6 +1700,11 @@ echo -e "${GREEN}Building in: ${BOLD}$(pwd)${NC}\n"
 # Load memory keys
 load_memory_keys
 
+# Check for existing state file before proceeding
+if [ -f "$STATE_FILE" ]; then
+    echo -e "${YELLOW}Found existing build state in this directory${NC}"
+fi
+
 # Load or create state
 if load_state; then
     echo -e "${YELLOW}📂 Resuming from phase $CURRENT_PHASE/$TOTAL_PHASES${NC}"
@@ -1727,6 +1732,13 @@ else
     # Initial git commit
     git add -A
     git commit -m "Initial setup: MCP servers, analysis, and research completed" || true
+fi
+
+# Handle Phase 0 (Research and Dependencies)
+if [ $CURRENT_PHASE -eq 0 ]; then
+    # Move to phase 1 after research phase
+    CURRENT_PHASE=1
+    save_state 1 "ready" "Moving to implementation phases"
 fi
 
 # Phase 1: Project Foundation and Structure
