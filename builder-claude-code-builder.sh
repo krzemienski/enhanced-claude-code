@@ -5,6 +5,11 @@
 # 
 # This script builds a sophisticated Python application that uses Claude Code SDK
 # to autonomously build complete projects through multiple execution phases.
+#
+# Usage: ./builder-claude-code-builder.sh [OPTIONS]
+# Options:
+#   -o, --output-dir DIR    Output directory for the build (default: current directory)
+#   -h, --help              Show this help message
 
 set -euo pipefail
 
@@ -58,6 +63,61 @@ TOTAL_COST="0.0"
 # Memory management tracking
 MEMORY_KEYS_FILE=".memory_keys.json"
 declare -A MEMORY_KEYS
+
+# Output directory (can be overridden by CLI argument)
+OUTPUT_DIR=""
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -o, --output-dir DIR    Output directory for the build (default: current directory)"
+    echo "  -h, --help              Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                      # Build in current directory"
+    echo "  $0 -o /path/to/output   # Build in specified directory"
+    echo "  $0 --output-dir ./build # Build in ./build directory"
+    exit 0
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -o|--output-dir)
+            if [[ -n "${2:-}" ]]; then
+                OUTPUT_DIR="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --output-dir requires a directory path${NC}"
+                exit 1
+            fi
+            ;;
+        -h|--help)
+            show_usage
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Set output directory to current directory if not specified
+if [ -z "$OUTPUT_DIR" ]; then
+    OUTPUT_DIR="$(pwd)"
+else
+    # Convert to absolute path if relative
+    if [[ "$OUTPUT_DIR" = /* ]]; then
+        # Already absolute path
+        :
+    else
+        # Relative path - make it absolute
+        OUTPUT_DIR="$(pwd)/$OUTPUT_DIR"
+    fi
+fi
 
 # Load external instructions if available
 # Get script directory
@@ -228,7 +288,12 @@ save_memory_keys() {
 
 check_memory_key_exists() {
     local key=$1
-    [[ -v MEMORY_KEYS["$key"] ]] && return 0 || return 1
+    # Check if key exists in associative array
+    if [[ ${MEMORY_KEYS[$key]+isset} ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 add_memory_key() {
@@ -940,11 +1005,26 @@ if ! command -v git &> /dev/null; then
     exit 1
 fi
 
-# Create project directory
+# Create and move to output directory
+echo -e "${CYAN}Output directory: ${BOLD}$OUTPUT_DIR${NC}"
+
+# Create the output directory if it doesn't exist
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo -e "${YELLOW}Creating output directory...${NC}"
+    mkdir -p "$OUTPUT_DIR"
+fi
+
+# Move to output directory
+cd "$OUTPUT_DIR"
+
+# Create project subdirectory
 if [ ! -d "$PROJECT_NAME" ]; then
     mkdir -p "$PROJECT_NAME"
 fi
 cd "$PROJECT_NAME"
+
+# Display full build path
+echo -e "${GREEN}Building in: ${BOLD}$(pwd)${NC}\n"
 
 # Load memory keys
 load_memory_keys
