@@ -68,6 +68,10 @@ MEMORY_KEYS_DIR=".memory_keys"
 # Output directory (can be overridden by CLI argument)
 OUTPUT_DIR=""
 
+# Global arrays for MCP discovery
+declare -a DISCOVERED_MCP_SERVERS
+declare -a MCP_SERVER_COMMANDS
+
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -124,7 +128,7 @@ else
     fi
     
     # Ensure parent directory exists
-    local parent_dir=$(dirname "$OUTPUT_DIR")
+    parent_dir=$(dirname "$OUTPUT_DIR")
     if [ ! -d "$parent_dir" ]; then
         echo -e "${RED}Error: Parent directory does not exist: $parent_dir${NC}"
         exit 1
@@ -388,33 +392,81 @@ setup_mcp_servers() {
     log_phase "START" "Setting up MCP servers for Claude Code Builder"
     
     log_info "Configuring Model Context Protocol servers..."
+    log_info "MCP servers provide enhanced capabilities for Claude Code:"
     
-    cat > .mcp.json <<"MCP_CONFIG"
-{
-"mcpServers": {
-"memory": {
+    # Check if MEM0_API_KEY is set
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        log_warning "MEM0_API_KEY not set. Please export MEM0_API_KEY to use Mem0 memory system."
+        log_info "Using standard memory server:"
+        log_info "  - Command: npx -y @modelcontextprotocol/server-memory"
+        log_info "  - Purpose: Key-value storage for build state and phase data"
+        log_info "  - Features: Simple persistence across phases"
+        MEMORY_SERVER_CONFIG='"memory": {
 "command": "npx",
 "args": ["-y", "@modelcontextprotocol/server-memory"],
 "description": "Store build progress, architectural decisions, and phase contexts"
-},
-"sequential-thinking": {
+}'
+    else
+        log_success "MEM0_API_KEY detected. Using Mem0 for intelligent memory management."
+        log_info "Mem0 MCP server configuration:"
+        log_info "  - Command: npx -y @mem0/mcp"
+        log_info "  - API Key: ${MEM0_API_KEY:0:10}...${MEM0_API_KEY: -4}"
+        log_info "  - Purpose: Intelligent memory with semantic search"
+        log_info "  - Features: LLM-powered extraction, contradiction resolution, persistence"
+        MEMORY_SERVER_CONFIG='"mem0-mcp": {
 "command": "npx",
-"args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-"description": "Plan complex implementations and dependencies"
+"args": ["-y", "@mem0/mcp"],
+"env": {
+"MEM0_API_KEY": "'"$MEM0_API_KEY"'"
 },
-"filesystem": {
-"command": "npx",
-"args": ["-y", "@modelcontextprotocol/server-filesystem", "--allowed-paths", "."],
-"description": "Enhanced file operations for complex project structure"
-},
-"git": {
-"command": "npx",
-"args": ["-y", "@modelcontextprotocol/server-git"],
-"description": "Git operations for version control and progress tracking"
-}
-}
-}
-MCP_CONFIG
+"description": "Intelligent memory with LLM-powered extraction and semantic search"
+}'
+    fi
+    
+    # Create the MCP configuration file
+    {
+        echo '{'
+        echo '"mcpServers": {'
+        echo "$MEMORY_SERVER_CONFIG,"
+        echo '"sequential-thinking": {'
+        echo '"command": "npx",'
+        echo '"args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],'
+        echo '"description": "Plan complex implementations and dependencies"'
+        echo '},'
+        echo '"filesystem": {'
+        echo '"command": "npx",'
+        echo '"args": ["-y", "@modelcontextprotocol/server-filesystem", "--allowed-paths", "."],'
+        echo '"description": "Enhanced file operations for complex project structure"'
+        echo '},'
+        echo '"git": {'
+        echo '"command": "npx",'
+        echo '"args": ["-y", "@modelcontextprotocol/server-git"],'
+        echo '"description": "Git operations for version control and progress tracking"'
+        echo '}'
+        echo '}'
+        echo '}'
+    } > .mcp.json
+    
+    # Log MCP server details
+    log_info "MCP servers configured:"
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        log_info "  1. mem0-mcp - Intelligent memory with semantic search"
+    else
+        log_info "  1. memory - Standard key-value memory storage"
+    fi
+    log_info "  2. sequential-thinking - Step-by-step reasoning for complex problems"
+    log_info "     Command: npx -y @modelcontextprotocol/server-sequential-thinking"
+    log_info "  3. filesystem - Enhanced file operations with path restrictions"
+    log_info "     Command: npx -y @modelcontextprotocol/server-filesystem"
+    log_info "     Allowed paths: Current directory (.)"
+    log_info "  4. git - Version control operations"
+    log_info "     Command: npx -y @modelcontextprotocol/server-git"
+    
+    # Display the generated configuration
+    log_info "Generated MCP configuration (.mcp.json):"
+    cat .mcp.json | while IFS= read -r line; do
+        echo "    $line" | tee -a "$VALIDATION_LOG"
+    done
     
     log_success "MCP configuration created with memory, sequential-thinking, filesystem, and git servers"
     
@@ -427,15 +479,301 @@ MCP_CONFIG
         git commit -m "Initial commit: Claude Code Builder project setup" || true
     fi
     
+    # Discover all available MCP servers
+    discover_all_mcp_servers
+    
+    # Display MCP server status
+    display_mcp_status
+    
     log_phase "SUCCESS" "MCP configuration created"
+}
+
+# Helper function to store user preferences in Mem0
+store_user_preferences() {
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        log_phase "INIT" "Storing user preferences in Mem0"
+        
+        local add_tool=$(get_memory_tool "add")
+        
+        # Create preferences prompt
+        local preferences_prompt="STORE USER PREFERENCES IN MEM0
+
+Please store the following user preferences using ${add_tool}:
+
+1. 'User Preference: Output directory is $OUTPUT_DIR' 
+2. 'User Preference: Building Claude Code Builder v2.3.0'
+3. 'User Preference: Model is $MODEL'
+4. 'User Preference: Max turns per phase is $MAX_TURNS'
+5. 'User Preference: Project name is $PROJECT_NAME'
+
+Include user_id='claude-code-builder' in all memory operations.
+
+These preferences will help maintain consistency across sessions."
+        
+        run_claude_auto "$preferences_prompt" "Store User Preferences"
+        log_phase "SUCCESS" "User preferences stored in Mem0"
+    fi
+}
+
+# Function to discover all available MCP servers
+discover_all_mcp_servers() {
+    log_info "Discovering all available MCP servers..."
+    
+    local discovered_servers=()
+    local server_commands=()
+    
+    # 1. Check globally installed NPM packages for MCP servers
+    if command -v npm &> /dev/null; then
+        log_info "Checking globally installed NPM packages..."
+        local npm_list=$(npm list -g --depth=0 2>/dev/null | grep -E "@modelcontextprotocol/|mcp-server-|@.*\/mcp$" || true)
+        
+        if [ -n "$npm_list" ]; then
+            while IFS= read -r line; do
+                local pkg_name=$(echo "$line" | sed -E 's/.*[├└]── (@[^@]+).*/\1/')
+                if [ -n "$pkg_name" ]; then
+                    discovered_servers+=("$pkg_name")
+                    log_info "  Found: $pkg_name"
+                fi
+            done <<< "$npm_list"
+        fi
+    fi
+    
+    # 2. Check Claude Desktop config for additional servers
+    local claude_config=""
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        claude_config="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        claude_config="$HOME/.config/Claude/claude_desktop_config.json"
+    fi
+    
+    if [ -f "$claude_config" ] && command -v jq &> /dev/null; then
+        log_info "Checking Claude Desktop configuration..."
+        local claude_servers=$(jq -r '.mcpServers | keys[]' "$claude_config" 2>/dev/null || true)
+        
+        if [ -n "$claude_servers" ]; then
+            while IFS= read -r server; do
+                if [[ ! " ${discovered_servers[@]} " =~ " ${server} " ]]; then
+                    discovered_servers+=("$server")
+                    log_info "  Found in Claude config: $server"
+                fi
+            done <<< "$claude_servers"
+        fi
+    fi
+    
+    # 3. Add known MCP servers that might be useful
+    local known_servers=(
+        "@modelcontextprotocol/server-filesystem"
+        "@modelcontextprotocol/server-github" 
+        "@modelcontextprotocol/server-gitlab"
+        "@modelcontextprotocol/server-git"
+        "@modelcontextprotocol/server-puppeteer"
+        "@modelcontextprotocol/server-slack"
+        "@modelcontextprotocol/server-postgres"
+        "@modelcontextprotocol/server-sqlite"
+        "@modelcontextprotocol/server-everything"
+        "@modelcontextprotocol/server-fetch"
+        "@modelcontextprotocol/server-brave-search"
+        "@modelcontextprotocol/server-google-maps"
+        "@anthropic/server-evals"
+        "@mem0/mcp"
+        "@shimizu/mcp-server-perplexity"
+        "mcp-server-linear"
+        "mcp-server-notion"
+    )
+    
+    for server in "${known_servers[@]}"; do
+        if [[ ! " ${discovered_servers[@]} " =~ " ${server} " ]]; then
+            # Check if server is installed
+            if npm list -g "$server" &> /dev/null; then
+                discovered_servers+=("$server")
+                log_info "  Verified installed: $server"
+            fi
+        fi
+    done
+    
+    # Generate server commands for whitelisting
+    for server in "${discovered_servers[@]}"; do
+        case "$server" in
+            *"filesystem"*)
+                server_commands+=("filesystem__read_file" "filesystem__write_file" "filesystem__list_directory")
+                ;;
+            *"github"*)
+                server_commands+=("github__search_repositories" "github__create_issue" "github__create_pull_request")
+                ;;
+            *"git"*)
+                server_commands+=("git__status" "git__diff" "git__commit" "git__log")
+                ;;
+            *"mem0"*)
+                server_commands+=("mem0-mcp__add-memory" "mem0-mcp__search-memories" "mem0-mcp__list-memories")
+                ;;
+            *"memory"*)
+                server_commands+=("memory__create_memory" "memory__retrieve_memory" "memory__list_memories")
+                ;;
+            *"fetch"*)
+                server_commands+=("fetch__fetch")
+                ;;
+            *"puppeteer"*)
+                server_commands+=("puppeteer__navigate" "puppeteer__screenshot" "puppeteer__click")
+                ;;
+            *"perplexity"*)
+                server_commands+=("perplexity__search" "perplexity__ask")
+                ;;
+            *"everything"*)
+                server_commands+=("everything__execute")
+                ;;
+            *"slack"*)
+                server_commands+=("slack__send_message" "slack__get_messages")
+                ;;
+            *"postgres"*)
+                server_commands+=("postgres__query" "postgres__execute")
+                ;;
+            *"sqlite"*)
+                server_commands+=("sqlite__query" "sqlite__execute")
+                ;;
+            *"brave-search"*)
+                server_commands+=("brave-search__search")
+                ;;
+            *"google-maps"*)
+                server_commands+=("google-maps__search" "google-maps__directions")
+                ;;
+            *"gitlab"*)
+                server_commands+=("gitlab__search_repositories" "gitlab__create_issue")
+                ;;
+            *"linear"*)
+                server_commands+=("linear__create_issue" "linear__list_issues")
+                ;;
+            *"notion"*)
+                server_commands+=("notion__search" "notion__create_page")
+                ;;
+            *"evals"*)
+                server_commands+=("evals__run" "evals__list")
+                ;;
+        esac
+    done
+    
+    # Export for use in other functions - use global variables
+    DISCOVERED_MCP_SERVERS=("${discovered_servers[@]}")
+    MCP_SERVER_COMMANDS=("${server_commands[@]}")
+    
+    log_info "Discovered ${#discovered_servers[@]} MCP servers"
+    log_info "Generated ${#server_commands[@]} whitelisted commands"
+}
+
+# Function to display MCP server status
+display_mcp_status() {
+    echo -e "\n${GREEN}✅ MCP Server Configuration:${NC}"
+    
+    if [ -f ".mcp.json" ]; then
+        echo -e "${BLUE}  MCP config file created at: $(pwd)/.mcp.json${NC}"
+        
+        # Display configured servers
+        if command -v jq &> /dev/null; then
+            local servers=$(jq -r '.mcpServers | keys[]' ".mcp.json" 2>/dev/null)
+            if [ -n "$servers" ]; then
+                echo -e "${YELLOW}  Configured MCP servers:${NC}"
+                echo "$servers" | while read -r server; do
+                    echo -e "${CYAN}    - $server${NC}"
+                done
+            fi
+        fi
+    fi
+    
+    # Display discovered servers
+    if [ -n "${DISCOVERED_MCP_SERVERS:-}" ]; then
+        echo -e "\n${YELLOW}  All discovered MCP servers:${NC}"
+        for server in "${DISCOVERED_MCP_SERVERS[@]}"; do
+            echo -e "${CYAN}    - $server${NC}"
+        done
+        
+        echo -e "\n${YELLOW}  Whitelisted MCP commands: ${#MCP_SERVER_COMMANDS[@]}${NC}"
+    fi
+    
+    # Display memory backend status
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        echo -e "\n${GREEN}  Memory backend: Mem0 (intelligent memory with semantic search)${NC}"
+        echo -e "${BLUE}  Mem0 API key is configured${NC}"
+    else
+        echo -e "${YELLOW}  Memory backend: Standard MCP memory server${NC}"
+        echo -e "${DIM}  Set MEM0_API_KEY to enable intelligent memory features${NC}"
+    fi
+}
+
+# Get memory tool names based on MEM0_API_KEY
+get_memory_tools() {
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        # Mem0 MCP tool names
+        echo "mem0-mcp__add-memory mem0-mcp__search-memories mem0-mcp__list-memories mem0-mcp__delete-memories"
+    else
+        # Standard memory MCP tool names
+        echo "memory__create_memory memory__retrieve_memory memory__list_memories memory__delete_memory"
+    fi
+}
+
+# Get specific memory tool
+get_memory_tool() {
+    local tool_type=$1
+    local tools=($(get_memory_tools))
+    
+    case $tool_type in
+        "add"|"create")
+            echo "${tools[0]}"
+            ;;
+        "search"|"retrieve")
+            echo "${tools[1]}"
+            ;;
+        "list")
+            echo "${tools[2]}"
+            ;;
+        "delete")
+            echo "${tools[3]}"
+            ;;
+    esac
 }
 
 # Initialize function - Full analysis of specs
 init_project() {
     log_phase "INIT" "Initializing project analysis"
     
-    # Create analysis prompt
-    local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    
+    # Create analysis prompt based on memory system
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS (Using Mem0)
+
+You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
+
+1. ANALYZE ALL SPECIFICATIONS
+   - Read and understand the full project specification
+   - Identify all major components and their relationships
+   - Map out the complete architecture
+   - List all dependencies and requirements
+
+2. USE MEM0 TO STORE YOUR ANALYSIS
+   - Use ${add_tool} to save comprehensive analysis:
+     * Save with message: 'Project Overview: Claude Code Builder v2.3.0 - [your understanding]'
+     * Save with message: 'Architecture: [component] connects to [component] via [interface]'
+     * Save with message: 'Dependencies identified: [list of packages and versions]'
+     * Save with message: 'Phase [N] requirements: [what needs to be accomplished]'
+     * Save with message: 'Critical feature: [feature] requires [implementation details]'
+   - Include user_id='claude-code-builder' in all operations
+   - Mem0 will automatically extract key information and maintain consistency
+   
+3. IDENTIFY KNOWLEDGE GAPS
+   - Save knowledge gaps: 'Research needed: [technology/library] for [purpose]'
+   - Note challenges: 'Potential challenge: [issue] may require [solution approach]'
+
+4. CREATE BUILD STRATEGY
+   - Use sequential_thinking__think_about to plan the optimal build approach
+   - Save strategy: 'Build strategy: [phase ordering and dependencies]'
+
+AVAILABLE TOOLS:
+- ${add_tool} - Save analysis with intelligent extraction
+- ${search_tool} - Search existing memories semantically
+- sequential_thinking__think_about(problem) - Analyze complex aspects
+- filesystem__read_file(path) - Read specification files"
+    else
+        local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS
 
 You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
 
@@ -446,7 +784,7 @@ You are about to build the Claude Code Builder v2.3.0. This is a critical initia
    - List all dependencies and requirements
 
 2. USE YOUR TOOLS TO GAIN CONTEXT
-   - Use memory__create_memory to save your analysis with keys:
+   - Use ${add_tool} to save your analysis with keys:
      * 'project_overview' - High-level project understanding
      * 'architecture_analysis' - Component relationships
      * 'dependency_list' - All required packages and tools
@@ -464,10 +802,13 @@ You are about to build the Claude Code Builder v2.3.0. This is a critical initia
    - Identify potential parallelization opportunities
 
 AVAILABLE MCP TOOLS:
-- memory__create_memory(key, value) - Save analysis results
-- memory__retrieve_memory(key) - Check existing knowledge
+- ${add_tool}(key, value) - Save analysis results
+- ${search_tool}(key) - Check existing knowledge
 - sequential_thinking__think_about(problem) - Analyze complex aspects
-- filesystem__read_file(path) - Read specification files
+- filesystem__read_file(path) - Read specification files"
+    fi
+
+    analysis_prompt+="
 
 FULL SPECIFICATION:
 $FULL_SPEC
@@ -482,12 +823,14 @@ Perform a comprehensive analysis and save all findings to memory with appropriat
     # Run Claude with analysis prompt
     run_claude_auto "$analysis_prompt" "Project Analysis"
     
-    # Mark analysis keys as used
-    add_memory_key "project_overview" 0
-    add_memory_key "architecture_analysis" 0
-    add_memory_key "dependency_list" 0
-    add_memory_key "phase_requirements" 0
-    add_memory_key "critical_features" 0
+    # Mark analysis keys as used (only for standard memory)
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        add_memory_key "project_overview" 0
+        add_memory_key "architecture_analysis" 0
+        add_memory_key "dependency_list" 0
+        add_memory_key "phase_requirements" 0
+        add_memory_key "critical_features" 0
+    fi
     
     log_phase "SUCCESS" "Project analysis completed"
 }
@@ -496,13 +839,63 @@ Perform a comprehensive analysis and save all findings to memory with appropriat
 start_project() {
     log_phase "START" "Starting dependency resolution and research"
     
-    # Create research prompt
-    local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    
+    # Create research prompt based on memory system
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE (Using Mem0)
 
 Based on your initialization analysis, you must now:
 
 1. RETRIEVE YOUR ANALYSIS
-   - Use memory__retrieve_memory to get:
+   - Use ${search_tool} with semantic queries:
+     * 'dependencies for Claude Code Builder' - Get identified dependencies
+     * 'critical features' - Key features to research
+     * 'architecture analysis' - Technical requirements
+   - Mem0 will understand context and return relevant memories
+
+2. SEARCH FOR DOCUMENTATION
+   - Use web_search to find documentation for:
+     * Anthropic SDK latest features and best practices
+     * Click CLI framework advanced patterns
+     * Rich terminal UI library examples
+     * MCP server implementation guides
+     * Any dependencies found in your search
+
+3. RESOLVE ALL DEPENDENCIES
+   - Verify package versions and compatibility
+   - Find code examples and best practices
+   - Identify any deprecated features to avoid
+   - Look for security considerations
+
+4. UPDATE YOUR KNOWLEDGE BASE WITH MEM0
+   - Use ${add_tool} to save research findings with descriptive messages:
+     * 'Anthropic SDK: Use [pattern] for [feature] implementation'
+     * 'Click CLI best practice: [pattern description]'
+     * 'Rich UI implementation: [component] requires [setup]'
+     * 'MCP integration: [server type] needs [configuration]'
+     * 'Security: Always [practice] when [scenario]'
+     * 'Dependency versions: [package]==[version] for compatibility'
+   - Include user_id='claude-code-builder' for all memories
+
+5. IDENTIFY IMPLEMENTATION PATTERNS
+   - Save patterns: 'Implementation pattern: Use [pattern] for [scenario]'
+   - Save anti-patterns: 'Avoid: [anti-pattern] because [reason]'
+   - Save optimizations: 'Performance: [technique] improves [metric]'
+
+AVAILABLE TOOLS:
+- ${search_tool} - Search memories with natural language
+- ${add_tool} - Save research findings with context
+- web_search(query) - Search for documentation
+- sequential_thinking__think_about(problem) - Plan implementation"
+    else
+        local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE
+
+Based on your initialization analysis, you must now:
+
+1. RETRIEVE YOUR ANALYSIS
+   - Use ${search_tool} to get:
      * 'dependency_list' - All identified dependencies
      * 'critical_features' - Key features to research
      * 'architecture_analysis' - Technical requirements
@@ -522,7 +915,7 @@ Based on your initialization analysis, you must now:
    - Look for security considerations
 
 4. UPDATE YOUR KNOWLEDGE BASE
-   - Use memory__create_memory to save research findings:
+   - Use ${add_tool} to save research findings:
      * 'anthropic_sdk_knowledge' - Key SDK patterns and features
      * 'cli_best_practices' - Click framework patterns
      * 'ui_implementation_guide' - Rich UI examples
@@ -538,10 +931,13 @@ Based on your initialization analysis, you must now:
      * Error handling strategies
 
 AVAILABLE TOOLS:
-- memory__retrieve_memory(key) - Get your previous analysis
-- memory__create_memory(key, value) - Save research findings
+- ${search_tool}(key) - Get your previous analysis
+- ${add_tool}(key, value) - Save research findings
 - web_search(query) - Search for documentation and examples
-- sequential_thinking__think_about(problem) - Plan implementation
+- sequential_thinking__think_about(problem) - Plan implementation"
+    fi
+    
+    research_prompt+="
 
 Start by retrieving your analysis, then search for necessary documentation."
 
@@ -550,13 +946,15 @@ Start by retrieving your analysis, then search for necessary documentation."
     # Run Claude with research prompt
     run_claude_auto "$research_prompt" "Dependency Research"
     
-    # Mark research keys as used
-    add_memory_key "anthropic_sdk_knowledge" 0
-    add_memory_key "cli_best_practices" 0
-    add_memory_key "ui_implementation_guide" 0
-    add_memory_key "mcp_integration_patterns" 0
-    add_memory_key "security_considerations" 0
-    add_memory_key "dependency_versions" 0
+    # Mark research keys as used (only for standard memory)
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        add_memory_key "anthropic_sdk_knowledge" 0
+        add_memory_key "cli_best_practices" 0
+        add_memory_key "ui_implementation_guide" 0
+        add_memory_key "mcp_integration_patterns" 0
+        add_memory_key "security_considerations" 0
+        add_memory_key "dependency_versions" 0
+    fi
     
     log_phase "SUCCESS" "Research and dependency resolution completed"
 }
@@ -580,6 +978,15 @@ parse_claude_stream() {
                     if [ -n "$session_id" ]; then
                         LAST_SESSION_ID=$session_id
                         log_info "Session ID: $session_id"
+                    fi
+                    
+                    # Check for MCP server configuration in system messages
+                    local mcp_servers=$(echo "$line" | jq -r '.configured_servers[]? // empty' 2>/dev/null)
+                    if [ -n "$mcp_servers" ]; then
+                        log_info "Configured MCP servers in this session:"
+                        echo "$mcp_servers" | while read -r server; do
+                            log_info "  - $server"
+                        done
                     fi
                     ;;
                     
@@ -609,8 +1016,12 @@ parse_claude_stream() {
                             "memory__create_memory")
                                 local mem_key=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.key // empty' 2>/dev/null)
                                 if [ -n "$mem_key" ]; then
-                                    log_tool_use "Memory" "Storing key: $mem_key"
-                                    add_memory_key "$mem_key"
+                                    log_tool_use "Memory (MCP)" "Storing key: $mem_key"
+                                    log_info "  MCP Server: memory"
+                                    log_info "  Purpose: Key-value storage for build state"
+                                    if [ -z "${MEM0_API_KEY:-}" ]; then
+                                        add_memory_key "$mem_key"
+                                    fi
                                 fi
                                 ;;
                             "memory__retrieve_memory")
@@ -619,8 +1030,32 @@ parse_claude_stream() {
                                     log_tool_use "Memory" "Retrieving key: $mem_key"
                                 fi
                                 ;;
+                            "mem0-mcp__add-memory")
+                                local messages=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.messages[]?.content // empty' 2>/dev/null | head -1)
+                                if [ -n "$messages" ]; then
+                                    log_tool_use "Mem0 (MCP)" "Storing: ${messages:0:50}..."
+                                    log_info "  MCP Server: mem0-mcp"
+                                    log_info "  Purpose: Intelligent memory with semantic understanding"
+                                fi
+                                ;;
+                            "mem0-mcp__search-memories")
+                                local query=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.query // empty' 2>/dev/null)
+                                if [ -n "$query" ]; then
+                                    log_tool_use "Mem0 (MCP)" "Searching: $query"
+                                    log_info "  MCP Server: mem0-mcp"
+                                    log_info "  Purpose: Semantic search across stored memories"
+                                fi
+                                ;;
+                            "mem0-mcp__list-memories")
+                                log_tool_use "Mem0" "Listing all memories"
+                                ;;
+                            "mem0-mcp__delete-memories")
+                                log_tool_use "Mem0" "Deleting memories"
+                                ;;
                             "sequential_thinking__think_about")
-                                log_tool_use "Sequential Thinking" "Planning implementation approach"
+                                log_tool_use "Sequential Thinking (MCP)" "Planning implementation approach"
+                                log_info "  MCP Server: sequential-thinking"
+                                log_info "  Purpose: Step-by-step reasoning for complex logic"
                                 ;;
                             "web_search")
                                 local query=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.query // empty' 2>/dev/null)
@@ -628,8 +1063,11 @@ parse_claude_stream() {
                                     log_tool_use "Web Search" "Searching: $query"
                                 fi
                                 ;;
-                            "git__*")
-                                log_tool_use "Git" "Version control operation"
+                            git__*)
+                                local git_op=$(echo "$tool_name" | sed 's/git__//')
+                                log_tool_use "Git (MCP)" "Operation: $git_op"
+                                log_info "  MCP Server: git"
+                                log_info "  Purpose: Version control for tracking changes"
                                 ;;
                             *)
                                 log_tool_use "$tool_name" "Processing..."
@@ -733,10 +1171,22 @@ run_claude_auto() {
         claude_cmd+=" --mcp-config .mcp.json"
     fi
     
+    # Note: MCP tools are automatically available when using --dangerously-skip-permissions
+    # The MCP servers defined in .mcp.json will be loaded and their tools accessible
+    
     claude_cmd+=" --dangerously-skip-permissions"
     claude_cmd+=" --output-format stream-json"
     claude_cmd+=" --verbose"
     claude_cmd+=" --max-turns $MAX_TURNS"
+    
+    # Log the full command (with sensitive data masked)
+    local log_cmd=$(echo "$claude_cmd" | sed -E 's/(MEM0_API_KEY=")[^"]+"/\1[REDACTED]"/')
+    log_info "Claude command: $log_cmd"
+    
+    # Also log if MCP commands were added
+    if [ ${#MCP_SERVER_COMMANDS[@]} -gt 0 ]; then
+        log_info "Whitelisted commands include: mem0-mcp__add-memory, mem0-mcp__search-memories, etc."
+    fi
     
     # Execute with enhanced parsing
     log_info "Starting Claude with model $MODEL..."
@@ -1024,12 +1474,44 @@ get_phase_prompt() {
         tasks_content=$(cat "$TASKS_FILE")
     fi
     
-    # Build memory context prompt
-    local memory_context="
+    # Get memory tool names
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    local list_tool=$(get_memory_tool "list")
+    
+    # Build memory context prompt based on Mem0 vs standard memory
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local memory_context="
+MEMORY MANAGEMENT INSTRUCTIONS (Using Mem0 Intelligent Memory):
+
+1. MEMORY OPERATIONS:
+   - Use ${add_tool} to store new memories with semantic understanding
+   - Use ${search_tool} to find memories using natural language queries
+   - Use ${list_tool} to retrieve all memories for current context
+   - Mem0 automatically extracts key information and resolves contradictions
+   
+2. MEMORY STRUCTURE for phase $phase_num:
+   Store memories with descriptive messages that include:
+   - Phase context: 'Phase $phase_num: [description of accomplishment]'
+   - Architectural decisions: 'Architecture Decision: [component] uses [pattern/tech]'
+   - Interface definitions: 'Interface: [component A] -> [component B] via [method]'
+   - Implementation notes: 'Implementation: [feature] requires [dependency/consideration]'
+   
+3. SEARCHING MEMORIES:
+   - Use semantic queries: ${search_tool}('architectural decisions for MCP system')
+   - Search by phase: ${search_tool}('Phase 1 accomplishments')
+   - Find interfaces: ${search_tool}('interfaces between components')
+   - Mem0 understands context and returns relevant memories
+
+4. USER CONTEXT:
+   - Always include user_id='claude-code-builder' for proper memory isolation
+   - Memories persist across sessions for continuity"
+    else
+        local memory_context="
 MEMORY MANAGEMENT INSTRUCTIONS:
 1. ALWAYS check if a memory key exists before creating it:
-   - First use memory__retrieve_memory(key) to check
-   - Only use memory__create_memory if the key doesn't exist or needs updating
+   - First use ${search_tool}(key) to check
+   - Only use ${add_tool} if the key doesn't exist or needs updating
    
 2. Use these standardized keys for phase $phase_num:
    - 'phase_${phase_num}_overview' - Overview of what this phase accomplishes
@@ -1039,15 +1521,31 @@ MEMORY MANAGEMENT INSTRUCTIONS:
 
 3. Retrieve context from previous phases:
    - Always start by retrieving relevant previous phase data
-   - Use memory__retrieve_memory('phase_*_interfaces') to understand contracts
-   - Build upon existing architecture and decisions
+   - Use ${search_tool}('phase_*_interfaces') to understand contracts
+   - Build upon existing architecture and decisions"
+    fi
+    
+    memory_context+="
 
 AVAILABLE MCP TOOLS:
-- memory__create_memory(key, value) - Save state (check existence first!)
-- memory__retrieve_memory(key) - Get saved state
+- ${add_tool} - Store memories/state
+- ${search_tool} - Search/retrieve memories
+- ${list_tool} - List all memories
 - sequential_thinking__think_about(problem) - Complex planning
 - filesystem__read_file/write_file - File operations
-- git__status/add/commit - Version control operations
+- git__status/add/commit - Version control operations"
+
+    # Add discovered MCP servers information
+    if [ -n "${DISCOVERED_MCP_SERVERS:-}" ] && [ ${#DISCOVERED_MCP_SERVERS[@]} -gt 0 ]; then
+        memory_context+="
+
+ADDITIONAL DISCOVERED MCP SERVERS:
+You have access to ${#DISCOVERED_MCP_SERVERS[@]} MCP servers with ${#MCP_SERVER_COMMANDS[@]} whitelisted commands.
+These include servers for GitHub, GitLab, databases, search engines, and more.
+Use these tools when they would help accomplish the current phase objectives."
+    fi
+
+    memory_context+="
 
 GIT WORKFLOW:
 - Use git__status to check current changes
@@ -1150,6 +1648,9 @@ else
     
     # Phase -2: MCP Setup
     setup_mcp_servers
+    
+    # Store user preferences if using Mem0
+    store_user_preferences
     
     # Phase -1: Initialize with full analysis
     init_project
