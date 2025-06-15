@@ -427,7 +427,7 @@ if 'filesystem' in config.get('mcpServers', {}):
     ]
 
 # Ensure Mem0 API key is set if we have one
-mem0_key = '${MEM0_API_KEY:-}'
+mem0_key = '${MEM0_API_KEY:-}' or '${MEMO_API_KEY:-}'
 if mem0_key and 'mem0' in config.get('mcpServers', {}):
     if 'env' not in config['mcpServers']['mem0']:
         config['mcpServers']['mem0']['env'] = {}
@@ -440,7 +440,7 @@ with open(config_file, 'w') as f:
         log_info "Updated MCP configuration with project-specific settings"
         
         # Log which memory server is being used
-        if grep -q '"mem0"' "$MCP_CONFIG_FILE" && [ -n "${MEM0_API_KEY:-}" ]; then
+        if grep -q '"mem0"' "$MCP_CONFIG_FILE" && [ -n "${MEM0_API_KEY:-}${MEMO_API_KEY:-}" ]; then
             log_success "Using Mem0 intelligent memory system from Claude Desktop config"
         elif grep -q '"memory"' "$MCP_CONFIG_FILE"; then
             log_info "Using standard memory server from Claude Desktop config"
@@ -449,7 +449,7 @@ with open(config_file, 'w') as f:
         log_info "Claude Desktop config not found, using default configuration..."
         
         # Check if MEM0_API_KEY is set for fallback config
-        if [ -z "${MEM0_API_KEY:-}" ]; then
+        if [ -z "${MEM0_API_KEY:-}${MEMO_API_KEY:-}" ]; then
             log_warning "MEM0_API_KEY not set. Please export MEM0_API_KEY to use Mem0 memory system."
             log_info "Using standard memory server:"
             log_info "  - Command: npx -y @modelcontextprotocol/server-memory"
