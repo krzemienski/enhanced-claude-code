@@ -124,7 +124,7 @@ else
     fi
     
     # Ensure parent directory exists
-    local parent_dir=$(dirname "$OUTPUT_DIR")
+    parent_dir=$(dirname "$OUTPUT_DIR")
     if [ ! -d "$parent_dir" ]; then
         echo -e "${RED}Error: Parent directory does not exist: $parent_dir${NC}"
         exit 1
@@ -387,16 +387,33 @@ load_state() {
 setup_mcp_servers() {
     log_phase "START" "Setting up MCP servers for Claude Code Builder"
     
-    log_info "Configuring Model Context Protocol servers..."
+    log_info "Configuring Model Context Protocol servers with Mem0..."
     
-    cat > .mcp.json <<"MCP_CONFIG"
-{
-"mcpServers": {
-"memory": {
+    # Check if MEM0_API_KEY is set
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        log_warning "MEM0_API_KEY not set. Please export MEM0_API_KEY to use Mem0 memory system."
+        log_info "Falling back to standard memory server..."
+        MEMORY_SERVER_CONFIG='"memory": {
 "command": "npx",
 "args": ["-y", "@modelcontextprotocol/server-memory"],
 "description": "Store build progress, architectural decisions, and phase contexts"
+}'
+    else
+        log_success "MEM0_API_KEY detected. Using Mem0 for intelligent memory management."
+        MEMORY_SERVER_CONFIG='"mem0-mcp": {
+"command": "npx",
+"args": ["-y", "@mem0/mcp"],
+"env": {
+"MEM0_API_KEY": "'"$MEM0_API_KEY"'"
 },
+"description": "Intelligent memory with LLM-powered extraction and semantic search"
+}'
+    fi
+    
+    cat > .mcp.json <<EOF
+{
+"mcpServers": {
+$MEMORY_SERVER_CONFIG,
 "sequential-thinking": {
 "command": "npx",
 "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
@@ -414,9 +431,13 @@ setup_mcp_servers() {
 }
 }
 }
-MCP_CONFIG
+EOF
     
-    log_success "MCP configuration created with memory, sequential-thinking, filesystem, and git servers"
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        log_success "MCP configuration created with Mem0, sequential-thinking, filesystem, and git servers"
+    else
+        log_success "MCP configuration created with memory, sequential-thinking, filesystem, and git servers"
+    fi
     
     # Initialize git repository if not already initialized
     if [ ! -d ".git" ]; then
@@ -430,12 +451,81 @@ MCP_CONFIG
     log_phase "SUCCESS" "MCP configuration created"
 }
 
+# Store user preferences with Mem0
+store_user_preferences() {
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        log_info "Storing user preferences in Mem0..."
+        
+        # Get memory tool
+        local add_tool=$(get_memory_tool "add")
+        
+        # Create preferences prompt
+        local preferences_prompt="STORE USER PREFERENCES IN MEM0
+
+Please store the following user preferences using ${add_tool}:
+
+1. 'User Preference: Output directory is $OUTPUT_DIR' 
+2. 'User Preference: Building Claude Code Builder v2.3.0'
+3. 'User Preference: Model is $MODEL'
+4. 'User Preference: Max turns per phase is $MAX_TURNS'
+5. 'User Preference: Project name is $PROJECT_NAME'
+
+Include user_id='claude-code-builder' in all memory operations.
+
+These preferences will help maintain consistency across sessions."
+        
+        # Run Claude to store preferences
+        run_claude_auto "$preferences_prompt" "User Preferences" >/dev/null 2>&1
+    fi
+}
+
 # Initialize function - Full analysis of specs
 init_project() {
     log_phase "INIT" "Initializing project analysis"
     
-    # Create analysis prompt
-    local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS
+    # Get memory tool names
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    
+    # Create analysis prompt based on memory system
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS (Using Mem0)
+
+You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
+
+1. ANALYZE ALL SPECIFICATIONS
+   - Read and understand the full project specification
+   - Identify all major components and their relationships
+   - Map out the complete architecture
+   - List all dependencies and requirements
+
+2. USE MEM0 TO STORE YOUR ANALYSIS
+   - Use ${add_tool} to save comprehensive analysis:
+     * 'Project Overview: [detailed understanding of Claude Code Builder]'
+     * 'Architecture Analysis: [component relationships and design patterns]'
+     * 'Dependencies: [list of all required packages and tools]'
+     * 'Phase Requirements: [what each phase needs to accomplish]'
+     * 'Critical Features: [must-have functionality and key capabilities]'
+   - Include user_id='claude-code-builder' in all memory operations
+   - Mem0 will intelligently extract and organize this information
+   
+3. IDENTIFY KNOWLEDGE GAPS
+   - List any technologies or libraries you're not fully familiar with
+   - Identify areas that might need research
+   - Note any potential challenges or complexities
+
+4. CREATE BUILD STRATEGY
+   - Use sequential_thinking__think_about to plan the optimal build approach
+   - Consider phase dependencies and ordering
+   - Identify potential parallelization opportunities
+
+AVAILABLE MCP TOOLS:
+- ${add_tool} - Save analysis with intelligent extraction
+- ${search_tool} - Search existing memories semantically
+- sequential_thinking__think_about(problem) - Analyze complex aspects
+- filesystem__read_file(path) - Read specification files"
+    else
+        local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS
 
 You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
 
@@ -446,7 +536,7 @@ You are about to build the Claude Code Builder v2.3.0. This is a critical initia
    - List all dependencies and requirements
 
 2. USE YOUR TOOLS TO GAIN CONTEXT
-   - Use memory__create_memory to save your analysis with keys:
+   - Use ${add_tool} to save your analysis with keys:
      * 'project_overview' - High-level project understanding
      * 'architecture_analysis' - Component relationships
      * 'dependency_list' - All required packages and tools
@@ -464,10 +554,13 @@ You are about to build the Claude Code Builder v2.3.0. This is a critical initia
    - Identify potential parallelization opportunities
 
 AVAILABLE MCP TOOLS:
-- memory__create_memory(key, value) - Save analysis results
-- memory__retrieve_memory(key) - Check existing knowledge
+- ${add_tool}(key, value) - Save analysis results
+- ${search_tool}(key) - Check existing knowledge
 - sequential_thinking__think_about(problem) - Analyze complex aspects
-- filesystem__read_file(path) - Read specification files
+- filesystem__read_file(path) - Read specification files"
+    fi
+    
+    analysis_prompt+="
 
 FULL SPECIFICATION:
 $FULL_SPEC
@@ -475,19 +568,21 @@ $FULL_SPEC
 CUSTOM INSTRUCTIONS:
 $CUSTOM_INSTRUCTIONS
 
-Perform a comprehensive analysis and save all findings to memory with appropriate keys."
+Perform a comprehensive analysis and save all findings to memory."
 
     log_info "Running comprehensive project analysis..."
     
     # Run Claude with analysis prompt
     run_claude_auto "$analysis_prompt" "Project Analysis"
     
-    # Mark analysis keys as used
-    add_memory_key "project_overview" 0
-    add_memory_key "architecture_analysis" 0
-    add_memory_key "dependency_list" 0
-    add_memory_key "phase_requirements" 0
-    add_memory_key "critical_features" 0
+    # Mark analysis keys as used (only for standard memory)
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        add_memory_key "project_overview" 0
+        add_memory_key "architecture_analysis" 0
+        add_memory_key "dependency_list" 0
+        add_memory_key "phase_requirements" 0
+        add_memory_key "critical_features" 0
+    fi
     
     log_phase "SUCCESS" "Project analysis completed"
 }
@@ -496,13 +591,66 @@ Perform a comprehensive analysis and save all findings to memory with appropriat
 start_project() {
     log_phase "START" "Starting dependency resolution and research"
     
-    # Create research prompt
-    local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE
+    # Get memory tool names
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    
+    # Create research prompt based on memory system
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE (Using Mem0)
 
 Based on your initialization analysis, you must now:
 
 1. RETRIEVE YOUR ANALYSIS
-   - Use memory__retrieve_memory to get:
+   - Use ${search_tool} with semantic queries:
+     * 'dependencies for Claude Code Builder' - Get identified dependencies
+     * 'critical features' - Key features to research
+     * 'architecture analysis' - Technical requirements
+   - Mem0 will understand context and return relevant memories
+
+2. SEARCH FOR DOCUMENTATION
+   - Use web_search to find documentation for:
+     * Anthropic SDK latest features and best practices
+     * Click CLI framework advanced patterns
+     * Rich terminal UI library examples
+     * MCP server implementation guides
+     * Any other identified dependencies
+
+3. RESOLVE ALL DEPENDENCIES
+   - Verify package versions and compatibility
+   - Find code examples and best practices
+   - Identify any deprecated features to avoid
+   - Look for security considerations
+
+4. UPDATE YOUR KNOWLEDGE BASE
+   - Use ${add_tool} to save research findings with descriptive messages:
+     * 'Anthropic SDK: [key patterns and features discovered]'
+     * 'Click Framework: [best practices and patterns]'
+     * 'Rich UI: [implementation examples and techniques]'
+     * 'MCP Integration: [server usage patterns]'
+     * 'Security: [important security considerations]'
+     * 'Dependencies: [exact versions and compatibility notes]'
+   - Include user_id='claude-code-builder' in all operations
+
+5. IDENTIFY IMPLEMENTATION PATTERNS
+   - Based on research, identify:
+     * Common patterns to follow
+     * Anti-patterns to avoid
+     * Performance optimization techniques
+     * Error handling strategies
+
+AVAILABLE TOOLS:
+- ${search_tool} - Search memories with natural language
+- ${add_tool} - Save research findings with context
+- web_search(query) - Search for documentation and examples
+- sequential_thinking__think_about(problem) - Plan implementation"
+    else
+        local research_prompt="RESEARCH AND DEPENDENCY RESOLUTION PHASE
+
+Based on your initialization analysis, you must now:
+
+1. RETRIEVE YOUR ANALYSIS
+   - Use ${search_tool} to get:
      * 'dependency_list' - All identified dependencies
      * 'critical_features' - Key features to research
      * 'architecture_analysis' - Technical requirements
@@ -522,7 +670,7 @@ Based on your initialization analysis, you must now:
    - Look for security considerations
 
 4. UPDATE YOUR KNOWLEDGE BASE
-   - Use memory__create_memory to save research findings:
+   - Use ${add_tool} to save research findings:
      * 'anthropic_sdk_knowledge' - Key SDK patterns and features
      * 'cli_best_practices' - Click framework patterns
      * 'ui_implementation_guide' - Rich UI examples
@@ -538,10 +686,13 @@ Based on your initialization analysis, you must now:
      * Error handling strategies
 
 AVAILABLE TOOLS:
-- memory__retrieve_memory(key) - Get your previous analysis
-- memory__create_memory(key, value) - Save research findings
+- ${search_tool}(key) - Get your previous analysis
+- ${add_tool}(key, value) - Save research findings
 - web_search(query) - Search for documentation and examples
-- sequential_thinking__think_about(problem) - Plan implementation
+- sequential_thinking__think_about(problem) - Plan implementation"
+    fi
+    
+    research_prompt+="
 
 Start by retrieving your analysis, then search for necessary documentation."
 
@@ -550,13 +701,15 @@ Start by retrieving your analysis, then search for necessary documentation."
     # Run Claude with research prompt
     run_claude_auto "$research_prompt" "Dependency Research"
     
-    # Mark research keys as used
-    add_memory_key "anthropic_sdk_knowledge" 0
-    add_memory_key "cli_best_practices" 0
-    add_memory_key "ui_implementation_guide" 0
-    add_memory_key "mcp_integration_patterns" 0
-    add_memory_key "security_considerations" 0
-    add_memory_key "dependency_versions" 0
+    # Mark research keys as used (only for standard memory)
+    if [ -z "${MEM0_API_KEY:-}" ]; then
+        add_memory_key "anthropic_sdk_knowledge" 0
+        add_memory_key "cli_best_practices" 0
+        add_memory_key "ui_implementation_guide" 0
+        add_memory_key "mcp_integration_patterns" 0
+        add_memory_key "security_considerations" 0
+        add_memory_key "dependency_versions" 0
+    fi
     
     log_phase "SUCCESS" "Research and dependency resolution completed"
 }
@@ -610,7 +763,9 @@ parse_claude_stream() {
                                 local mem_key=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.key // empty' 2>/dev/null)
                                 if [ -n "$mem_key" ]; then
                                     log_tool_use "Memory" "Storing key: $mem_key"
-                                    add_memory_key "$mem_key"
+                                    if [ -z "${MEM0_API_KEY:-}" ]; then
+                                        add_memory_key "$mem_key"
+                                    fi
                                 fi
                                 ;;
                             "memory__retrieve_memory")
@@ -618,6 +773,24 @@ parse_claude_stream() {
                                 if [ -n "$mem_key" ]; then
                                     log_tool_use "Memory" "Retrieving key: $mem_key"
                                 fi
+                                ;;
+                            "mem0-mcp__add-memory")
+                                local messages=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.messages[]?.content // empty' 2>/dev/null | head -1)
+                                if [ -n "$messages" ]; then
+                                    log_tool_use "Mem0" "Storing: ${messages:0:50}..."
+                                fi
+                                ;;
+                            "mem0-mcp__search-memories")
+                                local query=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_use") | .input.query // empty' 2>/dev/null)
+                                if [ -n "$query" ]; then
+                                    log_tool_use "Mem0" "Searching: $query"
+                                fi
+                                ;;
+                            "mem0-mcp__list-memories")
+                                log_tool_use "Mem0" "Listing all memories"
+                                ;;
+                            "mem0-mcp__delete-memories")
+                                log_tool_use "Mem0" "Deleting memories"
                                 ;;
                             "sequential_thinking__think_about")
                                 log_tool_use "Sequential Thinking" "Planning implementation approach"
@@ -996,6 +1169,38 @@ handle_interrupt() {
 trap handle_interrupt SIGINT SIGTERM
 trap 'rm -f /tmp/tmp.*' EXIT
 
+# Get memory tool names based on configuration
+get_memory_tools() {
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        # Mem0 MCP tool names
+        echo "mem0-mcp__add-memory mem0-mcp__search-memories mem0-mcp__list-memories mem0-mcp__delete-memories"
+    else
+        # Standard memory MCP tool names
+        echo "memory__create_memory memory__retrieve_memory memory__list_memories memory__delete_memory"
+    fi
+}
+
+# Get specific memory tool
+get_memory_tool() {
+    local tool_type=$1
+    local tools=($(get_memory_tools))
+    
+    case $tool_type in
+        "add"|"create")
+            echo "${tools[0]}"
+            ;;
+        "search"|"retrieve")
+            echo "${tools[1]}"
+            ;;
+        "list")
+            echo "${tools[2]}"
+            ;;
+        "delete")
+            echo "${tools[3]}"
+            ;;
+    esac
+}
+
 # Load phase details with memory context
 get_phase_prompt() {
     local phase_num=$1
@@ -1024,12 +1229,44 @@ get_phase_prompt() {
         tasks_content=$(cat "$TASKS_FILE")
     fi
     
-    # Build memory context prompt
-    local memory_context="
+    # Get memory tool names
+    local add_tool=$(get_memory_tool "add")
+    local search_tool=$(get_memory_tool "search")
+    local list_tool=$(get_memory_tool "list")
+    
+    # Build memory context prompt based on Mem0 vs standard memory
+    if [ -n "${MEM0_API_KEY:-}" ]; then
+        local memory_context="
+MEMORY MANAGEMENT INSTRUCTIONS (Using Mem0 Intelligent Memory):
+
+1. MEMORY OPERATIONS:
+   - Use ${add_tool} to store new memories with semantic understanding
+   - Use ${search_tool} to find memories using natural language queries
+   - Use ${list_tool} to retrieve all memories for current context
+   - Mem0 automatically extracts key information and resolves contradictions
+   
+2. MEMORY STRUCTURE for phase $phase_num:
+   Store memories with descriptive messages that include:
+   - Phase context: 'Phase $phase_num: [description of accomplishment]'
+   - Architectural decisions: 'Architecture Decision: [component] uses [pattern/tech]'
+   - Interface definitions: 'Interface: [component A] -> [component B] via [method]'
+   - Implementation notes: 'Implementation: [feature] requires [dependency/consideration]'
+   
+3. SEARCHING MEMORIES:
+   - Use semantic queries: ${search_tool}('architectural decisions for MCP system')
+   - Search by phase: ${search_tool}('Phase 1 accomplishments')
+   - Find interfaces: ${search_tool}('interfaces between components')
+   - Mem0 understands context and returns relevant memories
+
+4. USER CONTEXT:
+   - Always include user_id='claude-code-builder' for proper memory isolation
+   - Memories persist across sessions for continuity"
+    else
+        local memory_context="
 MEMORY MANAGEMENT INSTRUCTIONS:
 1. ALWAYS check if a memory key exists before creating it:
-   - First use memory__retrieve_memory(key) to check
-   - Only use memory__create_memory if the key doesn't exist or needs updating
+   - First use ${search_tool}(key) to check
+   - Only use ${add_tool} if the key doesn't exist or needs updating
    
 2. Use these standardized keys for phase $phase_num:
    - 'phase_${phase_num}_overview' - Overview of what this phase accomplishes
@@ -1039,12 +1276,16 @@ MEMORY MANAGEMENT INSTRUCTIONS:
 
 3. Retrieve context from previous phases:
    - Always start by retrieving relevant previous phase data
-   - Use memory__retrieve_memory('phase_*_interfaces') to understand contracts
-   - Build upon existing architecture and decisions
+   - Use ${search_tool}('phase_*_interfaces') to understand contracts
+   - Build upon existing architecture and decisions"
+    fi
+    
+    memory_context+="
 
 AVAILABLE MCP TOOLS:
-- memory__create_memory(key, value) - Save state (check existence first!)
-- memory__retrieve_memory(key) - Get saved state
+- ${add_tool} - Store memories/state
+- ${search_tool} - Search/retrieve memories
+- ${list_tool} - List all memories
 - sequential_thinking__think_about(problem) - Complex planning
 - filesystem__read_file/write_file - File operations
 - git__status/add/commit - Version control operations
@@ -1150,6 +1391,9 @@ else
     
     # Phase -2: MCP Setup
     setup_mcp_servers
+    
+    # Store user preferences if using Mem0
+    store_user_preferences
     
     # Phase -1: Initialize with full analysis
     init_project
