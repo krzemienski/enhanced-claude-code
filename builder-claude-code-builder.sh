@@ -390,6 +390,56 @@ load_state() {
     return 0
 }
 
+# Analyze which memory backend is configured in the MCP config
+analyze_memory_backend() {
+    local has_mem0=false
+    local has_standard_memory=false
+    local mem0_api_key=""
+    
+    # Check if MCP config file exists
+    if [ ! -f "$MCP_CONFIG_FILE" ]; then
+        log_error "MCP configuration file not found at $MCP_CONFIG_FILE"
+        return 1
+    fi
+    
+    # Check for mem0 server in the config
+    if jq -e '.mcpServers.mem0' "$MCP_CONFIG_FILE" >/dev/null 2>&1; then
+        has_mem0=true
+        # Extract the API key from the config
+        mem0_api_key=$(jq -r '.mcpServers.mem0.env.MEM0_API_KEY // empty' "$MCP_CONFIG_FILE" 2>/dev/null)
+    fi
+    
+    # Check for standard memory server
+    if jq -e '.mcpServers.memory' "$MCP_CONFIG_FILE" >/dev/null 2>&1; then
+        has_standard_memory=true
+    fi
+    
+    # Determine and log which memory backend is active
+    if [ "$has_mem0" = true ] && [ -n "$mem0_api_key" ]; then
+        log_success "Memory Backend: Mem0 Intelligent Memory System"
+        log_info "  ✓ Mem0 MCP server is configured and active"
+        log_info "  ✓ API Key is set (${mem0_api_key:0:10}...)"
+        log_info "  ✓ Features: Semantic search, LLM-powered extraction, contradiction resolution"
+        log_info "  ✓ Package: @mem0/mcp-server"
+    elif [ "$has_mem0" = true ] && [ -z "$mem0_api_key" ]; then
+        log_warning "Memory Backend: Mem0 configured but API key is missing"
+        log_info "  ⚠ Mem0 server found in config but MEM0_API_KEY is not set"
+        log_info "  ⚠ Memory operations may fail without valid API key"
+    elif [ "$has_standard_memory" = true ]; then
+        log_info "Memory Backend: Standard MCP Memory Server"
+        log_info "  ✓ Using @modelcontextprotocol/server-memory"
+        log_info "  ✓ Features: Key-value storage, simple persistence"
+    else
+        log_warning "Memory Backend: No memory server configured"
+        log_info "  ⚠ Neither Mem0 nor standard memory server found in MCP config"
+    fi
+    
+    # List all configured MCP servers
+    log_info ""
+    log_info "All configured MCP servers:"
+    jq -r '.mcpServers | to_entries | .[] | "  - \(.key)"' "$MCP_CONFIG_FILE" 2>/dev/null || log_error "Failed to parse MCP config"
+}
+
 # MCP Configuration for Claude Code Builder with Git support
 setup_mcp_servers() {
     log_phase "START" "Setting up MCP servers for Claude Code Builder"
@@ -439,12 +489,8 @@ with open(config_file, 'w') as f:
         
         log_info "Updated MCP configuration with project-specific settings"
         
-        # Log which memory server is being used
-        if grep -q '"mem0"' "$MCP_CONFIG_FILE" && [ -n "${MEM0_API_KEY:-}${MEMO_API_KEY:-}" ]; then
-            log_success "Using Mem0 intelligent memory system from Claude Desktop config"
-        elif grep -q '"memory"' "$MCP_CONFIG_FILE"; then
-            log_info "Using standard memory server from Claude Desktop config"
-        fi
+        # Analyze and log which memory backend is configured
+        analyze_memory_backend
     else
         log_info "Claude Desktop config not found, using default configuration..."
         
@@ -733,34 +779,44 @@ display_mcp_status() {
         fi
     fi
     
-    # Display discovered servers
+    # Analyze and display the actual memory backend from MCP config
+    echo ""
+    analyze_memory_backend
+    
+    # Display discovered servers if available
     if [ -n "${DISCOVERED_MCP_SERVERS:-}" ]; then
-        echo -e "\n${YELLOW}  All discovered MCP servers:${NC}"
-        for server in "${DISCOVERED_MCP_SERVERS[@]}"; do
-            echo -e "${CYAN}    - $server${NC}"
-        done
-        
-        echo -e "\n${YELLOW}  Whitelisted MCP commands: ${#MCP_SERVER_COMMANDS[@]}${NC}"
+        echo -e "\n${YELLOW}  All discovered MCP servers: ${#DISCOVERED_MCP_SERVERS[@]}${NC}"
     fi
     
-    # Display memory backend status
-    if [ -n "${MEM0_API_KEY:-}" ]; then
-        echo -e "\n${GREEN}  Memory backend: Mem0 (intelligent memory with semantic search)${NC}"
-        echo -e "${BLUE}  Mem0 API key is configured${NC}"
-    else
-        echo -e "${YELLOW}  Memory backend: Standard MCP memory server${NC}"
-        echo -e "${DIM}  Set MEM0_API_KEY to enable intelligent memory features${NC}"
+    # Display whitelisted commands
+    if [ -n "${MCP_SERVER_COMMANDS:-}" ]; then
+        echo -e "${YELLOW}  Whitelisted MCP commands: ${#MCP_SERVER_COMMANDS[@]}${NC}"
     fi
 }
 
-# Get memory tool names based on MEM0_API_KEY
+# Get memory tool names based on actual MCP configuration
 get_memory_tools() {
-    if [ -n "${MEM0_API_KEY:-}" ]; then
-        # Mem0 MCP tool names
-        echo "mem0-mcp__add-memory mem0-mcp__search-memories mem0-mcp__list-memories mem0-mcp__delete-memories"
-    else
-        # Standard memory MCP tool names
+    # Check if MCP config exists
+    if [ ! -f "$MCP_CONFIG_FILE" ]; then
+        # Fallback to environment variable check
+        if [ -n "${MEM0_API_KEY:-}${MEMO_API_KEY:-}" ]; then
+            echo "mem0-mcp__add-memory mem0-mcp__search-memories mem0-mcp__list-memories mem0-mcp__delete-memories"
+        else
+            echo "memory__create_memory memory__retrieve_memory memory__list_memories memory__delete_memory"
+        fi
+        return
+    fi
+    
+    # Check actual MCP configuration
+    if jq -e '.mcpServers.mem0' "$MCP_CONFIG_FILE" >/dev/null 2>&1; then
+        # Mem0 is configured
+        echo "mem0__add_memory mem0__search_memory mem0__get_all_memories mem0__delete_memory"
+    elif jq -e '.mcpServers.memory' "$MCP_CONFIG_FILE" >/dev/null 2>&1; then
+        # Standard memory is configured
         echo "memory__create_memory memory__retrieve_memory memory__list_memories memory__delete_memory"
+    else
+        # No memory server configured
+        echo ""
     fi
 }
 
@@ -792,8 +848,13 @@ init_project() {
     local add_tool=$(get_memory_tool "add")
     local search_tool=$(get_memory_tool "search")
     
-    # Create analysis prompt based on memory system
-    if [ -n "${MEM0_API_KEY:-}" ]; then
+    # Create analysis prompt based on actual memory system in MCP config
+    local is_mem0=false
+    if [ -f "$MCP_CONFIG_FILE" ] && jq -e '.mcpServers.mem0' "$MCP_CONFIG_FILE" >/dev/null 2>&1; then
+        is_mem0=true
+    fi
+    
+    if [ "$is_mem0" = true ]; then
         local analysis_prompt="INITIALIZATION PHASE - FULL PROJECT ANALYSIS (Using Mem0)
 
 You are about to build the Claude Code Builder v2.3.0. This is a critical initialization phase where you must:
