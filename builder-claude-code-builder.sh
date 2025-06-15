@@ -62,7 +62,8 @@ TOTAL_COST="0.0"
 
 # Memory management tracking
 MEMORY_KEYS_FILE=".memory_keys.json"
-declare -A MEMORY_KEYS
+# Use a simple file-based approach for compatibility with older bash versions
+MEMORY_KEYS_DIR=".memory_keys"
 
 # Output directory (can be overridden by CLI argument)
 OUTPUT_DIR=""
@@ -264,42 +265,55 @@ log_ai_message() {
 
 # Memory management functions
 load_memory_keys() {
+    # Create memory keys directory if it doesn't exist
+    mkdir -p "$MEMORY_KEYS_DIR"
+    
+    # Also maintain JSON file for compatibility
     if [ -f "$MEMORY_KEYS_FILE" ]; then
+        # Migrate existing keys to directory structure
         while IFS="=" read -r key value; do
-            MEMORY_KEYS["$key"]="$value"
-        done < <(jq -r 'to_entries[] | "\(.key)=\(.value)"' "$MEMORY_KEYS_FILE")
+            echo "$value" > "$MEMORY_KEYS_DIR/$key"
+        done < <(jq -r 'to_entries[] | "\(.key)=\(.value)"' "$MEMORY_KEYS_FILE" 2>/dev/null || true)
     fi
 }
 
 save_memory_keys() {
+    # Save to JSON file for compatibility
     local json_obj="{"
     local first=true
-    for key in "${!MEMORY_KEYS[@]}"; do
-        if [ "$first" = true ]; then
-            first=false
-        else
-            json_obj+=","
-        fi
-        json_obj+="\"$key\":\"${MEMORY_KEYS[$key]}\""
-    done
+    
+    if [ -d "$MEMORY_KEYS_DIR" ]; then
+        # Use find to handle empty directory case
+        while IFS= read -r key_file; do
+            if [ -n "$key_file" ] && [ -f "$key_file" ]; then
+                local key=$(basename "$key_file")
+                local value=$(cat "$key_file")
+                
+                if [ "$first" = true ]; then
+                    first=false
+                else
+                    json_obj+=","
+                fi
+                json_obj+="\"$key\":\"$value\""
+            fi
+        done < <(find "$MEMORY_KEYS_DIR" -maxdepth 1 -type f 2>/dev/null || true)
+    fi
+    
     json_obj+="}"
     echo "$json_obj" > "$MEMORY_KEYS_FILE"
 }
 
 check_memory_key_exists() {
     local key=$1
-    # Check if key exists in associative array
-    if [[ ${MEMORY_KEYS[$key]+isset} ]]; then
-        return 0
-    else
-        return 1
-    fi
+    # Check if key file exists
+    [ -f "$MEMORY_KEYS_DIR/$key" ]
 }
 
 add_memory_key() {
     local key=$1
     local phase=${2:-$CURRENT_PHASE}
-    MEMORY_KEYS["$key"]="phase_${phase}_$(date +%s)"
+    mkdir -p "$MEMORY_KEYS_DIR"
+    echo "phase_${phase}_$(date +%s)" > "$MEMORY_KEYS_DIR/$key"
     save_memory_keys
 }
 
@@ -607,9 +621,13 @@ parse_claude_stream() {
                     ;;
                     
                 "user")
-                    local tool_result=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_result") | .content // empty' 2>/dev/null)
+                    local tool_result=$(echo "$line" | jq -r '.message.content[]? | select(.type == "tool_result") | .content // empty' 2>/dev/null || true)
                     if [ -n "$tool_result" ] && [[ "$tool_result" == *"successfully"* ]]; then
-                        local file_created=$(echo "$tool_result" | grep -oE '/[^ ]+$' || echo "")
+                        # Extract file path more safely
+                        local file_created=""
+                        if echo "$tool_result" | grep -q '/'; then
+                            file_created=$(echo "$tool_result" | sed -n 's/.*\(\/[^ ]*\)$/\1/p')
+                        fi
                         if [ -n "$file_created" ]; then
                             log_file_created "$file_created"
                         fi
@@ -680,8 +698,12 @@ run_claude_auto() {
     log_phase "START" "Phase $phase_num: $task_name"
     echo -e "\n${DIM}════════════════════════════════════════════════════════════════════════${NC}\n"
     
-    # Create prompt file
-    local prompt_file=$(mktemp)
+    # Create prompt file with proper error handling
+    local prompt_file
+    prompt_file=$(mktemp) || {
+        log_error "Failed to create temporary file"
+        return 1
+    }
     echo "$prompt" > "$prompt_file"
     
     # Build Claude command
@@ -839,10 +861,18 @@ validate_phase() {
 commit_phase() {
     local phase_num=$1
     local phase_description=$2
+    # Get list of added files safely
+    local added_files=""
+    if git status --porcelain | grep -q '^A'; then
+        added_files=$(git status --porcelain | grep '^A' | awk '{print "- " $2}')
+    else
+        added_files="- No new files (modifications only)"
+    fi
+    
     local commit_message="Phase $phase_num: $phase_description
 
 Completed implementation of:
-$(git status --porcelain | grep '^A' | awk '{print "- " $2}')
+$added_files
 
 This phase includes:
 - All required components for $phase_description
@@ -927,7 +957,16 @@ get_phase_prompt() {
     if [ -f "$PHASES_FILE" ]; then
         phase_content=$(cat "$PHASES_FILE")
         # Extract the specific phase section from phases.md
-        phase_section=$(echo "$phase_content" | awk "/^## Phase $phase_num:/{flag=1} /^## Phase $((phase_num+1)):/{flag=0} flag")
+        local phase_section=""
+        local next_phase=$((phase_num + 1))
+        
+        # Use a more robust extraction method
+        if [ $phase_num -lt $TOTAL_PHASES ]; then
+            phase_section=$(echo "$phase_content" | sed -n "/^## Phase $phase_num:/,/^## Phase $next_phase:/p" | sed '$d')
+        else
+            # Last phase - get everything from phase marker to end
+            phase_section=$(echo "$phase_content" | sed -n "/^## Phase $phase_num:/,\$p")
+        fi
     else
         phase_section=""
     fi
