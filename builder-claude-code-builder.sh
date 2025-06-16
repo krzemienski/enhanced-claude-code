@@ -994,7 +994,8 @@ execute_enhanced_dynamic_phase() {
     # Load memory context from previous phases
     local memory_context=""
     if [ -f "$MEMORY_FILE" ]; then
-        memory_context=$(jq -r '.phases | to_entries | map(select(.key | tonumber < '$phase_num')) | map(.value) | @json' "$MEMORY_FILE" || echo '{}')
+        # Extract phase number from keys like "phase_1" and filter
+        memory_context=$(jq -r '.phases | to_entries | map(select(.key | split("_")[1] | tonumber < '$phase_num')) | map(.value) | @json' "$MEMORY_FILE" 2>/dev/null || echo '{}')
         log "MEMORY" "Loaded context from $(($phase_num - 1)) previous phases"
     fi
     
