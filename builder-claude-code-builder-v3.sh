@@ -817,23 +817,140 @@ execute_functional_testing() {
     echo -e "\n${BOLD}🧪 FUNCTIONAL TESTING STAGES:${NC}"
     echo -e "  1️⃣  Installation verification"
     echo -e "  2️⃣  CLI functionality testing"
-    echo -e "  3️⃣  Dry run validation"
-    echo -e "  4️⃣  Full project build (10-30 minutes)"
-    echo -e "  5️⃣  Results validation\n"
+    echo -e "  3️⃣  Full project build (10-30 minutes)"
+    echo -e "  4️⃣  Results validation\n"
     
-    # Create test prompt with explicit instructions
-    local test_prompt=$(cat testing-instructions-v3.md)
+    # Create enhanced test prompt without dry runs
+    local test_prompt="# Comprehensive Functional Testing for Claude Code Builder v3.0
+
+You must now execute a complete functional test of the Claude Code Builder that was just built.
+This test WILL take 10-30 minutes and that is NORMAL and EXPECTED.
+
+## Testing Framework - NO DRY RUNS, ONLY REAL EXECUTION
+
+### Stage 1: Installation Test
+\`\`\`bash
+cd claude-code-builder
+pip install -e .
+
+# Verify installation
+pip show claude-code-builder
+which claude-code-builder
+claude-code-builder --version
+\`\`\`
+
+### Stage 2: CLI Functionality Test
+\`\`\`bash
+# Test all CLI commands
+claude-code-builder --help
+claude-code-builder --list-examples
+claude-code-builder --show-costs
+\`\`\`
+
+### Stage 3: Full Functional Test (LONG RUNNING - 10-30 MINUTES)
+\`\`\`bash
+# Create simple test spec
+cat > test-api-spec.md << 'EOF'
+# Simple REST API
+Create a basic REST API with the following features:
+- GET /health endpoint returning {\"status\": \"ok\"}
+- GET /hello endpoint returning {\"message\": \"Hello, World!\"}
+- Proper error handling
+- Unit tests
+EOF
+
+# Create output directory
+mkdir -p test-output
+
+# Start the REAL build (NO DRY RUN - THIS WILL TAKE 10-30 MINUTES)
+claude-code-builder test-api-spec.md \\
+    --output-dir ./test-output \\
+    --enable-research \\
+    --verbose \\
+    --stream-output \\
+    2>&1 | tee test-execution.log &
+
+# Get process ID
+BUILD_PID=\$!
+
+# Monitor progress in real-time
+while kill -0 \$BUILD_PID 2>/dev/null; do
+    echo \"=== Build Progress Check ===\"
     
-    local full_prompt="$test_prompt
+    # Count files created
+    echo \"Files created: \$(find test-output -type f 2>/dev/null | wc -l)\"
+    
+    # Check for phase completions
+    echo \"Phases completed: \$(grep -c 'PHASE.*COMPLETE' test-execution.log 2>/dev/null || echo 0)\"
+    
+    # Check for errors
+    echo \"Errors: \$(grep -c 'ERROR' test-execution.log 2>/dev/null || echo 0)\"
+    
+    # Show last few log lines
+    echo \"Recent activity:\"
+    tail -5 test-execution.log 2>/dev/null || echo \"Waiting for output...\"
+    
+    echo \"=========================\"
+    sleep 30
+done
 
-CRITICAL REMINDERS:
-1. The functional test WILL take 10-30 minutes - this is EXPECTED
-2. You MUST continuously monitor the streaming logs
-3. DO NOT conclude failure just because it takes time
-4. Use tail -f and watch commands to monitor progress
-5. Check for file creation and phase completion
+# Wait for completion
+wait \$BUILD_PID
+BUILD_EXIT_CODE=\$?
+\`\`\`
 
-Now execute the comprehensive functional testing following the instructions above."
+### Stage 4: Validation
+\`\`\`bash
+# Validate output structure
+cd test-output
+
+# Check for required files
+for file in setup.py requirements.txt README.md; do
+    if [ -f \"\$file\" ]; then
+        echo \"✓ \$file exists\"
+    else
+        echo \"✗ \$file missing\"
+    fi
+done
+
+# Check package structure
+if [ -d \"src\" ] || [ -d \"api\" ] || [ -f \"app.py\" ]; then
+    echo \"✓ Application code exists\"
+else
+    echo \"✗ Application code missing\"
+fi
+
+# Check for tests
+if [ -d \"tests\" ] || [ -f \"test_*.py\" ]; then
+    echo \"✓ Tests exist\"
+else
+    echo \"✗ Tests missing\"
+fi
+
+# Try to run the created project's tests
+if [ -f \"setup.py\" ]; then
+    pip install -e .
+    pytest tests/ -v || echo \"Tests not implemented or failed\"
+fi
+\`\`\`
+
+## CRITICAL REMINDERS:
+1. NO DRY RUNS - Execute the REAL build that creates actual files
+2. The full functional test (Stage 3) WILL take 10-30 minutes - this is EXPECTED
+3. You MUST monitor the progress continuously using the while loop
+4. DO NOT conclude failure just because it takes time
+5. The build creates files gradually - this is NORMAL
+6. Keep checking test-execution.log for progress
+7. Some phases may take 5-7 minutes each - this is NORMAL
+
+## Success Criteria:
+- Installation works without errors
+- CLI commands respond correctly
+- Full build creates a working project (NO DRY RUN)
+- Output contains all expected files
+- No critical errors in logs
+
+Now execute the comprehensive functional testing following these instructions."
     
     log "INFO" "Starting functional testing with extended timeout (30 minutes)"
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -863,7 +980,6 @@ Now execute the comprehensive functional testing following the instructions abov
     "stages": {
         "installation": "PASSED",
         "cli_testing": "PASSED",
-        "dry_run": "PASSED",
         "functional_build": "PASSED",
         "validation": "PASSED"
     }
