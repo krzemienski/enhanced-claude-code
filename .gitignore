@@ -30,6 +30,15 @@ phase_validation.log
 test-mcp*.sh
 .mcp.json
 
+# Test directories
+test-build/
+test-build-output/
+test-resume/
+test-resume2/
+test-v3-build/
+test-mem0-config/
+test-*/
+
 # State files
 .claude-builder-state.json
 .memory_keys.json
