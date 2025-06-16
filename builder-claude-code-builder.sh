@@ -1009,10 +1009,12 @@ Now create the optimal build plan with full memory and research integration."
     log "INFO" "Using model: $MODEL_OPUS_4"
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    # Log the planning command
+    # Log the planning command with detailed info
     local planning_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 50 --output-format stream-json --verbose"
     log "INFO" "🔧 Planning command: $planning_cmd"
+    log "COST" "💰 Using Opus 4 - Input: \$15/1M tokens, Output: \$75/1M tokens"
     echo -e "${DIM}   Input: Planning prompt with ${#full_prompt} characters${NC}" >&2
+    echo -e "${DIM}   Expected tools: mem0, context7, filesystem, sequential-thinking${NC}" >&2
     
     # Always use Opus 4 for planning to determine complexity
     echo "$full_prompt" | $planning_cmd \
@@ -1046,13 +1048,15 @@ parse_enhanced_stream_output() {
     local line
     local in_tool_use=false
     local current_tool=""
+    local tool_id=""
     local buffer=""
     local last_update=$(date +%s)
-    local update_interval=5  # Show progress every 5 seconds
+    local update_interval=3  # Show progress every 3 seconds
     local char_count=0
     local line_count=0
     local input_tokens=0
     local output_tokens=0
+    local tool_count=0
     
     while IFS= read -r line; do
         # Skip empty lines
@@ -1062,10 +1066,12 @@ parse_enhanced_stream_output() {
         line_count=$((line_count + 1))
         char_count=$((char_count + ${#line}))
         
-        # Show periodic progress updates
+        # Show periodic progress updates with tool count and current activity
         local now=$(date +%s)
         if [ $((now - last_update)) -ge $update_interval ]; then
-            echo -e "${DIM}   [PROGRESS] Processing... (${line_count} events, ${char_count} chars)${NC}" >&2
+            local activity="thinking"
+            [ "$in_tool_use" = true ] && activity="using $current_tool"
+            echo -e "${DIM}   [PROGRESS] $activity... (${line_count} events, ${char_count} chars, ${tool_count} tools called)${NC}" >&2
             last_update=$now
         fi
         
@@ -1074,42 +1080,103 @@ parse_enhanced_stream_output() {
             # Use jq if available for better JSON parsing
             local message_type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
             
+            # Log the actual event type for debugging (only occasionally to avoid spam)
+            if [ $((line_count % 10)) -eq 0 ] && [ -n "$message_type" ] && [ "$message_type" != "empty" ]; then
+                echo -e "${DIM}   [EVENT] Type: $message_type${NC}" >&2
+            fi
+            
             case "$message_type" in
+                "message_start")
+                    echo -e "${DIM}   [STREAM] Claude starting new message...${NC}" >&2
+                    ;;
+                    
+                "user")
+                    echo -e "${DIM}   [STREAM] Processing user input...${NC}" >&2
+                    ;;
+                    
+                "assistant")
+                    echo -e "${DIM}   [STREAM] Claude generating response...${NC}" >&2
+                    ;;
+                    
                 "content_block_start")
                     local content_type=$(echo "$line" | jq -r '.content_block.type // empty' 2>/dev/null)
                     if [ "$content_type" = "tool_use" ]; then
                         current_tool=$(echo "$line" | jq -r '.content_block.name // "unknown"' 2>/dev/null)
+                        tool_id=$(echo "$line" | jq -r '.content_block.id // "unknown"' 2>/dev/null)
                         in_tool_use=true
+                        tool_count=$((tool_count + 1))
                         
-                        # Display tool usage with rationale
+                        # Extract and display tool parameters
+                        local tool_input=$(echo "$line" | jq -r '.content_block.input // {}' 2>/dev/null)
+                        
+                        # Display tool usage with detailed parameters
                         case $current_tool in
-                            mem0__*)
-                                echo -e "\n${PURPLE}🧠 [MEMORY OPERATION]${NC} ${BOLD}$current_tool${NC}"
-                                log "MEMORY" "Accessing persistent memory: $current_tool"
+                            mcp__mem0__*)
+                                echo -e "\n${PURPLE}🧠 [MEMORY OPERATION]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local query=$(echo "$tool_input" | jq -r '.query // .content // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}Query: $query${NC}"
+                                log "MEMORY" "Accessing persistent memory: $current_tool - Query: $query"
                                 ;;
-                            context7__*)
-                                echo -e "\n${CYAN}📚 [DOCUMENTATION LOOKUP]${NC} ${BOLD}$current_tool${NC}"
-                                log "RESEARCH" "Checking documentation: $current_tool"
+                            mcp__context7__*)
+                                echo -e "\n${CYAN}📚 [DOCUMENTATION LOOKUP]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local library=$(echo "$tool_input" | jq -r '.libraryName // .context7CompatibleLibraryID // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}Library: $library${NC}"
+                                log "RESEARCH" "Checking documentation: $current_tool - Library: $library"
                                 ;;
-                            filesystem__*)
-                                echo -e "\n${GREEN}📁 [FILE OPERATION]${NC} ${BOLD}$current_tool${NC}"
-                                log "TOOL" "File operation: $current_tool"
+                            mcp__filesystem__*)
+                                echo -e "\n${GREEN}📁 [FILE OPERATION]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local path=$(echo "$tool_input" | jq -r '.path // .paths[0] // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}Path: $path${NC}"
+                                log "TOOL" "File operation: $current_tool - Path: $path"
                                 ;;
-                            git__*)
-                                echo -e "\n${ORANGE}📝 [VERSION CONTROL]${NC} ${BOLD}$current_tool${NC}"
-                                log "GIT" "Git operation: $current_tool"
+                            mcp__git__*)
+                                echo -e "\n${ORANGE}📝 [VERSION CONTROL]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local repo_path=$(echo "$tool_input" | jq -r '.repo_path // "current"' 2>/dev/null)
+                                echo -e "   ${DIM}Repo: $repo_path${NC}"
+                                log "GIT" "Git operation: $current_tool - Repo: $repo_path"
                                 ;;
-                            sequential_thinking__*)
-                                echo -e "\n${PURPLE}🤔 [DEEP THINKING]${NC} ${BOLD}$current_tool${NC}"
-                                log "TOOL" "Sequential thinking: $current_tool"
+                            mcp__sequential-thinking__*)
+                                echo -e "\n${PURPLE}🤔 [DEEP THINKING]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local thought_num=$(echo "$tool_input" | jq -r '.thoughtNumber // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}Thought: #$thought_num${NC}"
+                                log "TOOL" "Sequential thinking: $current_tool - Thought: #$thought_num"
+                                ;;
+                            mcp__github__*)
+                                echo -e "\n${BLUE}🔗 [GITHUB OPERATION]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local repo=$(echo "$tool_input" | jq -r '.repo // .owner // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}Repo: $repo${NC}"
+                                log "TOOL" "GitHub operation: $current_tool - Repo: $repo"
+                                ;;
+                            mcp__firecrawl__*)
+                                echo -e "\n${YELLOW}🕷️ [WEB SCRAPING]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
+                                local url=$(echo "$tool_input" | jq -r '.url // .query // "unknown"' 2>/dev/null)
+                                echo -e "   ${DIM}URL: $url${NC}"
+                                log "RESEARCH" "Web scraping: $current_tool - URL: $url"
                                 ;;
                             *)
-                                echo -e "\n${CYAN}🔧 [TOOL USE]${NC} ${BOLD}$current_tool${NC}"
+                                echo -e "\n${CYAN}🔧 [TOOL USE]${NC} ${BOLD}$current_tool${NC} (ID: $tool_id)"
                                 log "TOOL" "Using tool: $current_tool"
                                 ;;
                         esac
                     elif [ "$content_type" = "text" ]; then
                         in_tool_use=false
+                        echo -e "${DIM}   [STREAM] Claude thinking and writing...${NC}" >&2
+                    fi
+                    ;;
+                    
+                "tool_result")
+                    local result_tool_id=$(echo "$line" | jq -r '.tool_use_id // "unknown"' 2>/dev/null)
+                    local is_error=$(echo "$line" | jq -r '.is_error // false' 2>/dev/null)
+                    local content_length=$(echo "$line" | jq -r '.content[0].text | length // 0' 2>/dev/null)
+                    
+                    if [ "$is_error" = "true" ]; then
+                        echo -e "   ${RED}❌ Tool failed${NC} (ID: $result_tool_id)"
+                        local error_msg=$(echo "$line" | jq -r '.content[0].text // "Unknown error"' 2>/dev/null)
+                        echo -e "   ${RED}Error: ${error_msg:0:100}${NC}"
+                        log "ERROR" "Tool $result_tool_id failed: $error_msg"
+                    else
+                        echo -e "   ${GREEN}✅ Tool completed${NC} (ID: $result_tool_id, ${content_length} chars)"
+                        log "SUCCESS" "Tool $result_tool_id completed successfully"
                     fi
                     ;;
                     
@@ -1178,6 +1245,7 @@ parse_enhanced_stream_output() {
                     if [ -n "$usage" ]; then
                         input_tokens=$(echo "$usage" | jq -r '.input_tokens // 0' 2>/dev/null)
                         output_tokens=$(echo "$usage" | jq -r '.output_tokens // 0' 2>/dev/null)
+                        echo -e "${DIM}   [STREAM] Claude finished - ${input_tokens} input tokens, ${output_tokens} output tokens${NC}" >&2
                     fi
                     ;;
             esac
@@ -1195,8 +1263,14 @@ parse_enhanced_stream_output() {
         echo "$line" >> raw-stream.log
     done
     
-    # Final progress update
-    echo -e "${DIM}   [Stream completed - Total: ${line_count} events, ${char_count} chars]${NC}" >&2
+    # Final progress update with comprehensive summary
+    echo -e "${DIM}   [STREAM COMPLETE]${NC}" >&2
+    echo -e "${DIM}   • Total events: ${line_count}${NC}" >&2  
+    echo -e "${DIM}   • Total characters: ${char_count}${NC}" >&2
+    echo -e "${DIM}   • Tools called: ${tool_count}${NC}" >&2
+    if [ "$input_tokens" -gt 0 ] && [ "$output_tokens" -gt 0 ]; then
+        echo -e "${DIM}   • Token usage: ${input_tokens} in, ${output_tokens} out${NC}" >&2
+    fi
     
     # Return token counts via global variables
     LAST_INPUT_TOKENS=$input_tokens
@@ -1268,11 +1342,13 @@ Output a summary of all findings that will inform the build process."
     # Research is always complex, use Opus 4
     log "INFO" "Using model: $MODEL_OPUS_4 (Research requires Opus 4)"
     
-    # Log the research command
+    # Log the research command with detailed info
     local research_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 20 --output-format stream-json --verbose"
     log "INFO" "🔧 Research command: timeout --foreground $RESEARCH_TIMEOUT $research_cmd"
+    log "COST" "💰 Using Opus 4 for research - Input: \$15/1M tokens, Output: \$75/1M tokens"
     echo -e "${DIM}   Input: Research prompt with ${#research_prompt} characters${NC}" >&2
     echo -e "${DIM}   Timeout: $RESEARCH_TIMEOUT seconds${NC}" >&2
+    echo -e "${DIM}   Research workflow: mem0 → context7 → web search → store findings${NC}" >&2
     
     echo "$research_prompt" | timeout --foreground $RESEARCH_TIMEOUT $research_cmd \
         --max-turns 20 \
@@ -1420,11 +1496,13 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
         log "INFO" "Using fallback API key for this phase"
     fi
     
-    # Log model being used and why
+    # Log model being used and why with cost info
     if [ "$phase_model" = "$MODEL_OPUS_4" ]; then
         log "INFO" "🎯 Using model: $phase_model (Complex task requiring Opus 4)"
+        log "COST" "💰 Opus 4 costs - Input: \$15/1M tokens, Output: \$75/1M tokens"
     else
         log "INFO" "⚡ Using model: $phase_model (Simple task, using efficient Sonnet 4)"
+        log "COST" "💰 Sonnet 4 costs - Input: \$3/1M tokens, Output: \$15/1M tokens"
     fi
     
     # Log detailed Claude command
@@ -1448,6 +1526,25 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
     echo -e "${DIM}   Command: $claude_cmd${NC}" >&2
     echo -e "${DIM}   Input: <prompt of ${#prompt} characters>${NC}" >&2
     echo -e "${DIM}   Log file: phase-$phase_num-output.log${NC}" >&2
+    
+    # Predict expected tool usage based on phase type
+    case "$phase_name" in
+        *"Research"*|*"Planning"*)
+            echo -e "${DIM}   Expected tools: mem0, context7, firecrawl, sequential-thinking${NC}" >&2
+            ;;
+        *"Architecture"*|*"Design"*)
+            echo -e "${DIM}   Expected tools: mem0, filesystem, sequential-thinking${NC}" >&2
+            ;;
+        *"Implementation"*|*"Build"*)
+            echo -e "${DIM}   Expected tools: filesystem, git, mem0${NC}" >&2
+            ;;
+        *"Test"*|*"Validation"*)
+            echo -e "${DIM}   Expected tools: filesystem, desktop-commander, git${NC}" >&2
+            ;;
+        *)
+            echo -e "${DIM}   Expected tools: filesystem, mem0, git${NC}" >&2
+            ;;
+    esac
     
     echo "$prompt" | env $claude_env $claude_cmd \
         2>&1 | tee -a "phase-$phase_num-output.log" | parse_enhanced_stream_output
