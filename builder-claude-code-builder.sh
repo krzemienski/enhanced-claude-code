@@ -1301,6 +1301,9 @@ main() {
             log "ERROR" "Enhanced AI planning failed"
             exit 1
         fi
+        
+        # Save initial build state after planning
+        save_build_state 1 "ready" "Planning completed"
     fi
     
     # Read total phases
