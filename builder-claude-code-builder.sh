@@ -767,10 +767,14 @@ Now create the optimal build plan with full memory and research integration."
     if [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
         log "SUCCESS" "AI planning with research completed successfully"
         
-        # Commit planning files
+        # Commit planning files (only if there are changes)
         git add build-phases-v3.json build-strategy-v3.md
-        git commit -m "feat: AI-generated build plan with research integration"
-        log "GIT" "Committed build planning files"
+        if git diff --staged --quiet; then
+            log "INFO" "Planning files already committed"
+        else
+            git commit -m "feat: AI-generated build plan with research integration"
+            log "GIT" "Committed build planning files"
+        fi
         
         return 0
     else
@@ -1286,20 +1290,34 @@ main() {
     if [ "$RESUME_BUILD" = true ] && load_build_state; then
         start_phase=$CURRENT_PHASE
         log "INFO" "Resuming from phase $start_phase"
+    elif [ "$RESUME_BUILD" = true ] && [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
+        # Resume requested but no state file, but planning files exist
+        log "INFO" "Resume requested: Planning files found but no state file"
+        log "INFO" "Assuming planning completed, starting from phase 1"
+        save_build_state 1 "ready" "Resuming from existing planning files"
+        start_phase=1
     else
         # Fresh start - create files
         create_enhanced_specification
         create_research_instructions
         setup_enhanced_mcp
         
-        # Initial git commit
+        # Initial git commit (only if there are changes)
         git add -A
-        git commit -m "feat: Initialize enhanced Claude Code Builder v3.0"
+        if git diff --staged --quiet; then
+            log "INFO" "Project files already initialized"
+        else
+            git commit -m "feat: Initialize enhanced Claude Code Builder v3.0"
+        fi
         
-        # Execute planning phase
-        if ! execute_enhanced_ai_planning; then
-            log "ERROR" "Enhanced AI planning failed"
-            exit 1
+        # Execute planning phase if files don't exist
+        if [ ! -f "build-phases-v3.json" ] || [ ! -f "build-strategy-v3.md" ]; then
+            if ! execute_enhanced_ai_planning; then
+                log "ERROR" "Enhanced AI planning failed"
+                exit 1
+            fi
+        else
+            log "INFO" "Planning files already exist, skipping planning phase"
         fi
         
         # Save initial build state after planning
