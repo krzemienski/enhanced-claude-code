@@ -956,7 +956,7 @@ Now execute the comprehensive functional testing following these instructions."
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
     # Execute testing phase with extended timeout
-    echo "$full_prompt" | timeout $FUNCTIONAL_TEST_TIMEOUT claude \
+    echo "$test_prompt" | timeout $FUNCTIONAL_TEST_TIMEOUT claude \
         --model "$MODEL" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
