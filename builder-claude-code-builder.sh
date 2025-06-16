@@ -433,7 +433,7 @@ Use the mem0__search-memories tool to find relevant information.
 Return a summary of what was found or indicate if no relevant memories exist."
     
     echo "$memory_check_prompt" | claude \
-        --model "$MODEL" \
+        --model "$MODEL_SONNET_4" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 3 \
@@ -1607,7 +1607,7 @@ Document all findings and ensure the enhanced features work correctly."
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
     echo "$test_prompt" | timeout $FUNCTIONAL_TEST_TIMEOUT claude \
-        --model "$MODEL" \
+        --model "$MODEL_OPUS_4" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 100 \
