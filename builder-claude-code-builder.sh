@@ -915,7 +915,7 @@ setup_enhanced_mcp() {
         },
         "mem0": {
             "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-mem0"],
+            "args": ["-y", "@mem0/mcp-server"],
             "env": {
                 "MEM0_API_KEY": "${MEM0_API_KEY:-}"
             },
