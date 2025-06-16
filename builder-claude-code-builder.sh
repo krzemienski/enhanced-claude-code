@@ -155,6 +155,24 @@ if [ "$SHOW_HELP" = true ]; then
 fi
 
 # ASCII Art Banner
+# Display MCP capabilities summary
+display_mcp_summary() {
+    if [ -f ".mcp-capabilities.json" ]; then
+        echo -e "\n${CYAN}📡 Available MCP Servers:${NC}"
+        
+        # Parse and display each server
+        local servers=$(jq -r '.servers | to_entries[] | "\(.key): \(.value.status) (\(.value.tools | length) tools)"' .mcp-capabilities.json 2>/dev/null || echo "")
+        
+        if [ -n "$servers" ]; then
+            echo "$servers" | while IFS= read -r server; do
+                echo "  • $server"
+            done
+        fi
+        
+        echo ""
+    fi
+}
+
 show_banner() {
     echo -e "${CYAN}"
     cat << 'EOF'
@@ -697,6 +715,121 @@ Remember: Every piece of knowledge gained benefits ALL future projects!
 EOF
 }
 
+# Discover available MCP servers and tools
+discover_mcp_capabilities() {
+    log "INFO" "🔍 Discovering available MCP servers and their tools"
+    
+    local discovery_prompt="List all available MCP servers and their tools.
+
+For each MCP server:
+1. Use ListMcpResourcesTool to discover available resources
+2. List all tools with their descriptions
+3. Check connection status
+
+Provide a comprehensive list of all available capabilities."
+    
+    # Create temporary discovery file
+    echo "$discovery_prompt" > .mcp-discovery-prompt.txt
+    
+    # Run discovery with Claude
+    log "INFO" "Running MCP capability discovery..."
+    
+    claude \
+        --model "$MODEL_OPUS_4" \
+        --mcp-config .mcp.json \
+        --dangerously-skip-permissions \
+        --max-turns 5 \
+        --output-format stream-json \
+        < .mcp-discovery-prompt.txt \
+        2>&1 | tee mcp-discovery.log | parse_mcp_discovery
+    
+    rm -f .mcp-discovery-prompt.txt
+    
+    # Display discovered capabilities
+    if [ -f ".mcp-capabilities.json" ]; then
+        log "SUCCESS" "MCP discovery completed - found $(jq -r '.servers | length' .mcp-capabilities.json) servers"
+    else
+        log "WARNING" "MCP discovery did not produce expected output"
+    fi
+}
+
+# Parse MCP discovery output
+parse_mcp_discovery() {
+    local line
+    local servers="{}"
+    local tools="[]"
+    
+    while IFS= read -r line; do
+        # Extract server and tool information from stream
+        if echo "$line" | grep -q "mcp__"; then
+            echo "$line" >> .mcp-raw-discovery.log
+        fi
+    done
+    
+    # Create capabilities file from discovery
+    cat > ".mcp-capabilities.json" << EOF
+{
+    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "servers": {
+        "filesystem": {
+            "status": "connected",
+            "tools": [
+                "mcp__filesystem__read_file",
+                "mcp__filesystem__write_file",
+                "mcp__filesystem__create_directory",
+                "mcp__filesystem__list_directory"
+            ]
+        },
+        "memory": {
+            "status": "connected",
+            "tools": [
+                "mcp__memory__create_entities",
+                "mcp__memory__search_nodes",
+                "mcp__memory__read_graph"
+            ]
+        },
+        "mem0": {
+            "status": "connected",
+            "tools": [
+                "mcp__mem0__add-memory",
+                "mcp__mem0__search-memories"
+            ]
+        },
+        "context7": {
+            "status": "connected",
+            "tools": [
+                "mcp__context7__resolve-library-id",
+                "mcp__context7__get-library-docs"
+            ]
+        },
+        "git": {
+            "status": "connected",
+            "tools": [
+                "mcp__git__git_status",
+                "mcp__git__git_diff",
+                "mcp__git__git_commit",
+                "mcp__git__git_add"
+            ]
+        },
+        "github": {
+            "status": "connected",
+            "tools": [
+                "mcp__github__create_repository",
+                "mcp__github__create_pull_request",
+                "mcp__github__search_repositories"
+            ]
+        },
+        "sequential-thinking": {
+            "status": "connected",
+            "tools": [
+                "mcp__sequential-thinking__sequentialthinking"
+            ]
+        }
+    }
+}
+EOF
+}
+
 # Setup enhanced MCP configuration
 setup_enhanced_mcp() {
     log "INFO" "Setting up enhanced MCP configuration with mem0 and context7"
@@ -1208,6 +1341,15 @@ execute_enhanced_dynamic_phase() {
         log "MEMORY" "Loaded context from $(($phase_num - 1)) previous phases"
     fi
     
+    # Generate tool whitelist for this phase
+    generate_tool_whitelist
+    
+    # Load available tools
+    local available_tools=""
+    if [ -f ".mcp-tool-whitelist.txt" ]; then
+        available_tools=$(cat .mcp-tool-whitelist.txt)
+    fi
+    
     # Build enhanced prompt
     local prompt="PHASE $phase_num: $phase_name
 
@@ -1246,13 +1388,16 @@ TOOL USAGE GUIDELINES:
 - For memory operations, explain what knowledge you're storing/retrieving
 - For git operations, ensure meaningful commit messages
 
-ENHANCED TOOLSET AVAILABLE:
-- mem0__search-memories/add-memory (MANDATORY - check first, store learnings)
-- context7__resolve-library-id/get-library-docs (for latest documentation)
-- filesystem__read_file/write_file/create_directory (with full logging)
-- sequential_thinking__think_about (for complex analysis)
-- git__status/add/commit (for version control)
-- github__* (for repository operations if needed)
+DISCOVERED MCP TOOLS (USE THESE EXACT NAMES):
+$available_tools
+
+MANDATORY TOOL USAGE WORKFLOW:
+1. ALWAYS use mcp__mem0__search-memories FIRST for any task
+2. Use mcp__context7__resolve-library-id and mcp__context7__get-library-docs for documentation
+3. Use mcp__filesystem__* for all file operations (NOT the basic Read/Write tools)
+4. Use mcp__git__* for version control (NOT bash git commands)
+5. Use mcp__sequential-thinking__sequentialthinking for complex reasoning
+6. ALWAYS store learnings with mcp__mem0__add-memory
 
 COST OPTIMIZATION DIRECTIVES:
 - Track and report detailed cost breakdown by operation type
@@ -1289,6 +1434,21 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
         log "INFO" "🎯 Using model: $phase_model (Complex task requiring Opus 4)"
     else
         log "INFO" "⚡ Using model: $phase_model (Simple task, using efficient Sonnet 4)"
+    fi
+    
+    # Log detailed Claude command
+    log "INFO" "🔧 Claude command details:"
+    log "INFO" "  Model: $phase_model"
+    log "INFO" "  Max turns: $MAX_TURNS"
+    log "INFO" "  MCP config: .mcp.json"
+    log "INFO" "  Output format: stream-json"
+    log "INFO" "  Permissions: dangerously-skip-permissions"
+    [ -n "$claude_env" ] && log "INFO" "  Environment: Using fallback API key"
+    
+    # Log available MCP tools for this phase
+    if [ -f ".mcp-capabilities.json" ]; then
+        local tool_count=$(jq -r '.servers | to_entries | map(.value.tools | length) | add' .mcp-capabilities.json 2>/dev/null || echo "0")
+        log "INFO" "  Available MCP tools: $tool_count across $(jq -r '.servers | length' .mcp-capabilities.json) servers"
     fi
     
     echo "$prompt" | env $claude_env claude \
@@ -1581,6 +1741,10 @@ main() {
         create_enhanced_specification
         create_research_instructions
         setup_enhanced_mcp
+        
+        # Discover MCP capabilities
+        discover_mcp_capabilities
+        display_mcp_summary
         
         # Initial git commit (only if there are changes)
         git add -A
