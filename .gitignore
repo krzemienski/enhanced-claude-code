@@ -43,3 +43,13 @@ test-*/
 .claude-builder-state.json
 .memory_keys.json
 .memory_keys/
+.build-state*.json
+.build-memory*.json
+
+# Build logs
+*-output.log
+*-phase-*.log
+raw-stream.log
+mem0-check.log
+planning-output.log
+research-phase-*.log
