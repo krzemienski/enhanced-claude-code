@@ -15,6 +15,15 @@
 
 set -euo pipefail
 
+# Check for required external dependencies
+REQUIRED_TOOLS=("jq" "git" "npx" "claude")
+for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo -e "\033[0;31mError:\033[0m Required tool '\033[1m$tool\033[0m' is not installed or not in PATH."
+        exit 1
+    fi
+done
+
 # Color codes
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -22,8 +31,8 @@ YELLOW="\033[1;33m"
 BLUE="\033[0;34m"
 CYAN="\033[0;36m"
 MAGENTA="\033[0;35m"
-ORANGE="\033[0;33m"
-PURPLE="\033[0;35m"
+ORANGE="\033[38;5;208m"
+PURPLE="\033[0;95m"
 BOLD="\033[1m"
 DIM="\033[2m"
 NC="\033[0m"
@@ -227,8 +236,16 @@ track_cost_information() {
 load_build_state() {
     if [ -f "$STATE_FILE" ]; then
         CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE")
-        OUTPUT_DIR=$(jq -r '.output_dir // "."' "$STATE_FILE")
-        log "INFO" "Resuming from phase $CURRENT_PHASE"
+        local saved_output_dir=$(jq -r '.output_dir // "."' "$STATE_FILE")
+        
+        # Check if output directory was specified in command line
+        if [ "$RESUME_BUILD" = true ] && [ "$OUTPUT_DIR" != "." ]; then
+            log "WARNING" "Resume mode detected with custom output directory. Using saved output directory: $saved_output_dir"
+            log "INFO" "If you want to change output directory, start a fresh build without --resume"
+        fi
+        
+        OUTPUT_DIR="$saved_output_dir"
+        log "INFO" "Resuming from phase $CURRENT_PHASE in directory: $OUTPUT_DIR"
         return 0
     else
         return 1
@@ -1230,7 +1247,10 @@ EOF
 
 # Main execution
 main() {
-    clear
+    # Only clear terminal in interactive sessions
+    if [ -t 1 ]; then
+        clear
+    fi
     show_banner
     
     log "INFO" "Starting Claude Code Builder v3.0 Enhanced"
