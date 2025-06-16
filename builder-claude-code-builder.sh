@@ -471,6 +471,7 @@ REMEMBER: This is production work - we need ALL available knowledge to avoid rep
         --dangerously-skip-permissions \
         --max-turns 10 \
         --output-format stream-json \
+        --verbose \
         2>&1 | tee "mem0-search-${topic//[^a-zA-Z0-9]/_}.log" | parse_enhanced_stream_output
 }
 
@@ -516,6 +517,7 @@ Store this knowledge so future projects can benefit from these learnings."
         --dangerously-skip-permissions \
         --max-turns 5 \
         --output-format stream-json \
+        --verbose \
         2>&1 | tee "mem0-store-${category//[^a-zA-Z0-9]/_}.log" | parse_enhanced_stream_output
 }
 
