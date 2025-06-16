@@ -50,7 +50,7 @@ FUNCTIONAL_TEST_TIMEOUT=1800  # 30 minutes
 RESEARCH_TIMEOUT=300  # 5 minutes per research query
 
 # Default values
-OUTPUT_DIR="."
+OUTPUT_DIR="$(pwd)"
 RESUME_BUILD=false
 SHOW_HELP=false
 ENABLE_RESEARCH=true
@@ -64,7 +64,10 @@ while [[ $# -gt 0 ]]; do
                 echo -e "${RED}Error: --output-dir requires a directory path${NC}"
                 exit 1
             fi
-            OUTPUT_DIR="$2"
+            # Expand the path to handle ~ and relative paths
+            OUTPUT_DIR=$(eval echo "$2")
+            # Convert to absolute path
+            OUTPUT_DIR=$(cd "$(dirname "$OUTPUT_DIR")" 2>/dev/null && pwd)/$(basename "$OUTPUT_DIR")
             shift 2
             ;;
         -r|--resume)
@@ -1279,9 +1282,13 @@ main() {
     log "INFO" "Research enabled: $ENABLE_RESEARCH"
     log "INFO" "Skip mem0 check: $SKIP_MEM0_CHECK"
     
-    # Create output directory
+    # Create output directory and ensure we're in a clean environment
     mkdir -p "$OUTPUT_DIR"
     cd "$OUTPUT_DIR"
+    
+    # Store the absolute path for clarity
+    OUTPUT_DIR=$(pwd)
+    log "INFO" "Working in directory: $OUTPUT_DIR"
     
     # Initialize git repository
     initialize_git_repo
@@ -1291,7 +1298,7 @@ main() {
     if [ "$RESUME_BUILD" = true ] && load_build_state; then
         start_phase=$CURRENT_PHASE
         log "INFO" "Resuming from phase $start_phase"
-    elif [ "$RESUME_BUILD" = true ] && [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
+    elif [ "$RESUME_BUILD" = true ] && [ -f "./build-phases-v3.json" ] && [ -f "./build-strategy-v3.md" ]; then
         # Resume requested but no state file, but planning files exist
         log "INFO" "Resume requested: Planning files found but no state file"
         log "INFO" "Assuming planning completed, starting from phase 1"
@@ -1311,14 +1318,17 @@ main() {
             git commit -m "feat: Initialize enhanced Claude Code Builder v3.0"
         fi
         
-        # Execute planning phase if files don't exist
-        if [ ! -f "build-phases-v3.json" ] || [ ! -f "build-strategy-v3.md" ]; then
+        # Execute planning phase if files don't exist IN CURRENT DIRECTORY
+        if [ ! -f "./build-phases-v3.json" ] || [ ! -f "./build-strategy-v3.md" ]; then
+            log "INFO" "Planning files not found in $(pwd), executing planning phase"
             if ! execute_enhanced_ai_planning; then
                 log "ERROR" "Enhanced AI planning failed"
                 exit 1
             fi
         else
-            log "INFO" "Planning files already exist, skipping planning phase"
+            log "WARNING" "Planning files already exist in $(pwd), this might be an error"
+            log "INFO" "Contents: $(ls -la build-*.json build-*.md 2>/dev/null || echo 'none')"
+            log "INFO" "Skipping planning phase"
         fi
         
         # Save initial build state after planning
