@@ -1,0 +1,167 @@
+{
+  "phase_id": "main_state",
+  "timestamp": "2025-06-15T16:05:50.906044",
+  "data": {
+    "timestamp": "2025-06-15T16:05:50.905973",
+    "phases": [
+      {
+        "id": "setup",
+        "name": "Project Setup",
+        "description": "Initialize project structure and configuration",
+        "tasks": [
+          "Create the task-tracker-api directory and all subdirectories as specified in the project structure",
+          "Create __init__.py files in src/ and tests/ directories to make them Python packages",
+          "Create requirements.txt with FastAPI, SQLAlchemy, uvicorn, pydantic, pytest, and python-dotenv"
+        ],
+        "dependencies": [],
+        "status": "success",
+        "retry_count": 0,
+        "error": null,
+        "duration": 68.394774,
+        "start_time": "2025-06-15T16:04:42.510532",
+        "end_time": "2025-06-15T16:05:50.905306",
+        "results": {
+          "tool_calls": [],
+          "final_output": null
+        },
+        "created_files": [],
+        "modified_files": [],
+        "requires_research": false
+      },
+      {
+        "id": "core",
+        "name": "Core Implementation",
+        "description": "Implement core functionality and business logic",
+        "tasks": [
+          "Create src/models.py with SQLAlchemy Task model (id, title, description, status, created_at, updated_at)",
+          "Create src/schemas.py with Pydantic schemas for TaskCreate, TaskUpdate, and TaskResponse",
+          "Create src/database.py with SQLAlchemy setup, engine creation, and session management"
+        ],
+        "dependencies": [
+          "setup"
+        ],
+        "status": "pending",
+        "retry_count": 0,
+        "error": null,
+        "duration": null,
+        "start_time": null,
+        "end_time": null,
+        "results": {},
+        "created_files": [],
+        "modified_files": [],
+        "requires_research": false
+      },
+      {
+        "id": "api",
+        "name": "API Development",
+        "description": "Create API endpoints and interfaces",
+        "tasks": [
+          "Create src/routes/__init__.py to initialize the routes module",
+          "Create src/routes/tasks.py with all CRUD endpoints (POST, GET, PUT, DELETE) for tasks",
+          "Implement GET /health endpoint in main.py for health checks"
+        ],
+        "dependencies": [
+          "core"
+        ],
+        "status": "pending",
+        "retry_count": 0,
+        "error": null,
+        "duration": null,
+        "start_time": null,
+        "end_time": null,
+        "results": {},
+        "created_files": [],
+        "modified_files": [],
+        "requires_research": false
+      }
+    ],
+    "completed_phases": [
+      "setup"
+    ],
+    "build_stats": {
+      "file_operations": {
+        "files_created": 0,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "directories_created": 0,
+        "created_files": [],
+        "modified_files": []
+      },
+      "code_metrics": {
+        "lines_written": 0,
+        "lines_modified": 0,
+        "lines_deleted": 0,
+        "functions_created": 0,
+        "classes_created": 0,
+        "code_size_estimate": 0
+      },
+      "tool_usage": {
+        "total_calls": 0,
+        "successful_calls": 0,
+        "failed_calls": 0,
+        "by_category": {},
+        "mcp_tools": []
+      },
+      "quality_metrics": {
+        "errors": 0,
+        "warnings": 0,
+        "retries": 0,
+        "tests_created": 0,
+        "documentation_files": 0
+      },
+      "timing": {
+        "total_duration": 0.0,
+        "phase_durations": {},
+        "start_time": null,
+        "end_time": null
+      }
+    },
+    "cost_tracker": {
+      "total_cost": 0.0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_tokens": 0,
+      "costs_by_model": {
+        "claude-opus-4-20250514": 0.0
+      },
+      "costs_by_phase": {
+        "setup": 0.0
+      },
+      "costs_by_hour": {
+        "2025-06-15 16:00": 0.0
+      },
+      "tokens_by_model": {
+        "claude-opus-4-20250514": {
+          "input": 0,
+          "output": 0
+        }
+      },
+      "average_cost_per_phase": 0.0,
+      "most_expensive_model": [
+        "claude-opus-4-20250514",
+        0.0
+      ],
+      "most_expensive_phase": [
+        "setup",
+        0.0
+      ],
+      "model_summary": {
+        "claude-opus-4-20250514": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "cost": 0.0,
+          "percentage": 0
+        }
+      },
+      "phase_summary": {
+        "setup": {
+          "cost": 0.0,
+          "percentage": 0
+        }
+      }
+    },
+    "research_results": null,
+    "mcp_config_path": null
+  }
+}
