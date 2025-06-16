@@ -284,7 +284,8 @@ Return a summary of what was found or indicate if no relevant memories exist."
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 3 \
-        2>&1 | tee mem0-check.log
+        --output-format stream-json \
+        2>&1 | tee mem0-check.log | parse_enhanced_stream_output
 }
 
 # Create the enhanced specification
@@ -758,6 +759,7 @@ Now create the optimal build plan with full memory and research integration."
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 30 \
+        --output-format stream-json \
         --verbose \
         2>&1 | tee planning-output.log | parse_enhanced_stream_output
     
@@ -781,78 +783,91 @@ Now create the optimal build plan with full memory and research integration."
 parse_enhanced_stream_output() {
     local line
     local in_tool_use=false
-    local tool_name=""
-    local tool_params=""
-    local collecting_params=false
-    local rationale_buffer=""
+    local current_tool=""
+    local buffer=""
     
     while IFS= read -r line; do
-        # Check for tool use
-        if echo "$line" | grep -q '"type":"tool_use"'; then
-            in_tool_use=true
-            tool_name=$(echo "$line" | grep -oE '"name":"[^"]+"' | cut -d'"' -f4 || echo "unknown")
+        # Skip empty lines
+        [ -z "$line" ] && continue
+        
+        # Try to parse as JSON and extract message content
+        if command -v jq >/dev/null 2>&1; then
+            # Use jq if available for better JSON parsing
+            local message_type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
             
-            # Special handling for different tool categories
-            case $tool_name in
-                mem0__*)
-                    echo -e "\n${PURPLE}🧠 [MEMORY OPERATION]${NC} ${BOLD}$tool_name${NC}"
-                    log "MEMORY" "Accessing persistent memory: $tool_name"
+            case "$message_type" in
+                "content_block_start")
+                    local content_type=$(echo "$line" | jq -r '.content_block.type // empty' 2>/dev/null)
+                    if [ "$content_type" = "tool_use" ]; then
+                        current_tool=$(echo "$line" | jq -r '.content_block.name // "unknown"' 2>/dev/null)
+                        in_tool_use=true
+                        
+                        # Display tool usage with rationale
+                        case $current_tool in
+                            mem0__*)
+                                echo -e "\n${PURPLE}🧠 [MEMORY OPERATION]${NC} ${BOLD}$current_tool${NC}"
+                                log "MEMORY" "Accessing persistent memory: $current_tool"
+                                ;;
+                            context7__*)
+                                echo -e "\n${CYAN}📚 [DOCUMENTATION LOOKUP]${NC} ${BOLD}$current_tool${NC}"
+                                log "RESEARCH" "Checking documentation: $current_tool"
+                                ;;
+                            filesystem__*)
+                                echo -e "\n${GREEN}📁 [FILE OPERATION]${NC} ${BOLD}$current_tool${NC}"
+                                log "TOOL" "File operation: $current_tool"
+                                ;;
+                            git__*)
+                                echo -e "\n${ORANGE}📝 [VERSION CONTROL]${NC} ${BOLD}$current_tool${NC}"
+                                log "GIT" "Git operation: $current_tool"
+                                ;;
+                            *)
+                                echo -e "\n${CYAN}🔧 [TOOL USE]${NC} ${BOLD}$current_tool${NC}"
+                                log "TOOL" "Using tool: $current_tool"
+                                ;;
+                        esac
+                    elif [ "$content_type" = "text" ]; then
+                        in_tool_use=false
+                    fi
                     ;;
-                context7__*)
-                    echo -e "\n${CYAN}📚 [DOCUMENTATION LOOKUP]${NC} ${BOLD}$tool_name${NC}"
-                    log "RESEARCH" "Checking documentation: $tool_name"
+                    
+                "content_block_delta")
+                    if [ "$in_tool_use" = false ]; then
+                        local text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
+                        if [ -n "$text" ]; then
+                            # Accumulate text for better display
+                            buffer="$buffer$text"
+                            # Display complete sentences
+                            if echo "$text" | grep -q '[.!?]'; then
+                                echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                                buffer=""
+                            fi
+                        fi
+                    fi
                     ;;
-                filesystem__*)
-                    echo -e "\n${GREEN}📁 [FILE OPERATION]${NC} ${BOLD}$tool_name${NC}"
+                    
+                "content_block_stop")
+                    if [ "$in_tool_use" = true ]; then
+                        echo -e "${DIM}   → Tool parameters configured${NC}"
+                        in_tool_use=false
+                    elif [ -n "$buffer" ]; then
+                        echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                        buffer=""
+                    fi
                     ;;
-                git__*)
-                    echo -e "\n${ORANGE}📝 [VERSION CONTROL]${NC} ${BOLD}$tool_name${NC}"
-                    log "GIT" "Git operation: $tool_name"
-                    ;;
-                *)
-                    echo -e "\n${CYAN}🔧 [TOOL USE]${NC} ${BOLD}$tool_name${NC}"
+                    
+                "message_stop")
+                    if [ -n "$buffer" ]; then
+                        echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                        buffer=""
+                    fi
                     ;;
             esac
-            
-            collecting_params=true
-            tool_params=""
-            
-        elif collecting_params && echo "$line" | grep -q '"input":\s*{'; then
-            # Start collecting parameters
-            tool_params="$line"
-            
-        elif collecting_params && [ -n "$tool_params" ]; then
-            # Continue collecting parameters until we hit the closing brace
-            tool_params="$tool_params$line"
-            if echo "$line" | grep -q '^\s*}'; then
-                collecting_params=false
-                # Try to extract and display key parameters
-                display_tool_parameters "$tool_name" "$tool_params"
-            fi
-            
-        elif echo "$line" | grep -q '"type":"text"' && [ "$in_tool_use" = false ]; then
-            # Extract text content
-            local text=$(echo "$line" | sed -n 's/.*"text":"\([^"]*\)".*/\1/p' || echo "")
-            if [ -n "$text" ]; then
-                # Check if this might be rationale
-                if echo "$text" | grep -qi "using\|because\|to\|for\|will"; then
-                    rationale_buffer="$rationale_buffer $text"
-                fi
-                echo -e "${GREEN}💬 [CLAUDE]${NC} $text"
-            fi
-            
-        elif echo "$line" | grep -q '"type":"tool_result"'; then
-            in_tool_use=false
-            echo -e "${MAGENTA}✓ [RESULT]${NC} Tool completed"
-            
-            # If we collected rationale, display it
-            if [ -n "$rationale_buffer" ]; then
-                echo -e "${DIM}   Rationale: ${rationale_buffer:0:100}...${NC}"
-                rationale_buffer=""
-            fi
+        else
+            # Fallback: simple text processing without jq
+            echo "$line"
         fi
         
-        # Save to raw log
+        # Save to raw log for debugging
         echo "$line" >> raw-stream.log
     done
 }
@@ -924,6 +939,7 @@ Output a summary of all findings that will inform the build process."
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 20 \
+        --output-format stream-json \
         --verbose \
         2>&1 | tee "research-phase-$phase_num.log" | parse_enhanced_stream_output
     
