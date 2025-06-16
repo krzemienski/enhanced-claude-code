@@ -1248,8 +1248,14 @@ claude-code-builder test-spec.md \\
     --no-dry-run \\
     2>&1 | tee test-execution.log &
 
-# Get process ID for monitoring
+# Get process ID for monitoring (with proper error handling)
 BUILD_PID=$!
+
+# Check if background process started successfully
+if [ -z "${BUILD_PID:-}" ]; then
+    echo "ERROR: Failed to start build process"
+    exit 1
+fi
 
 # Monitor the REAL build process
 tail -f test-execution.log
@@ -1352,9 +1358,14 @@ main() {
     if [ "$RESUME_BUILD" = true ] && load_build_state; then
         start_phase=$CURRENT_PHASE
         log "INFO" "Resuming from phase $start_phase"
-    elif [ "$RESUME_BUILD" = true ] && [ -f "./build-phases-v3.json" ] && [ -f "./build-strategy-v3.md" ]; then
+    elif [ "$RESUME_BUILD" = true ] && [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
         # Resume requested but no state file, but planning files exist
-        log "INFO" "Resume requested: Planning files found but no state file"
+        log "INFO" "Resume requested: Planning files found but no state file in $OUTPUT_DIR"
+        # Validate the planning files have content
+        if [ ! -s "build-phases-v3.json" ] || [ ! -s "build-strategy-v3.md" ]; then
+            log "ERROR" "Planning files exist but are empty"
+            exit 1
+        fi
         log "INFO" "Assuming planning completed, starting from phase 1"
         save_build_state 1 "ready" "Resuming from existing planning files"
         start_phase=1
@@ -1372,17 +1383,27 @@ main() {
             git commit -m "feat: Initialize enhanced Claude Code Builder v3.0"
         fi
         
-        # Execute planning phase if files don't exist IN CURRENT DIRECTORY
-        if [ ! -f "./build-phases-v3.json" ] || [ ! -f "./build-strategy-v3.md" ]; then
-            log "INFO" "Planning files not found in $(pwd), executing planning phase"
+        # Execute planning phase if files don't exist in output directory
+        if [ ! -f "build-phases-v3.json" ] || [ ! -f "build-strategy-v3.md" ]; then
+            log "INFO" "Planning files not found in output directory, executing planning phase"
             if ! execute_enhanced_ai_planning; then
                 log "ERROR" "Enhanced AI planning failed"
                 exit 1
             fi
         else
-            log "WARNING" "Planning files already exist in $(pwd), this might be an error"
-            log "INFO" "Contents: $(ls -la build-*.json build-*.md 2>/dev/null || echo 'none')"
-            log "INFO" "Skipping planning phase"
+            # Validate existing files have content
+            if [ ! -s "build-phases-v3.json" ] || [ ! -s "build-strategy-v3.md" ]; then
+                log "ERROR" "Planning files exist but are empty - removing and re-planning"
+                rm -f "build-phases-v3.json" "build-strategy-v3.md"
+                if ! execute_enhanced_ai_planning; then
+                    log "ERROR" "Enhanced AI planning failed"
+                    exit 1
+                fi
+            else
+                log "WARNING" "Planning files already exist in output directory"
+                log "INFO" "Contents: $(ls -la build-*.json build-*.md 2>/dev/null || echo 'none')"
+                log "INFO" "Skipping planning phase"
+            fi
         fi
         
         # Save initial build state after planning
@@ -1390,8 +1411,21 @@ main() {
     fi
     
     # Read total phases
-    local total_phases=$(jq -r '.total_phases // 0' build-phases-v3.json)
-    if [ $total_phases -eq 0 ]; then
+    local total_phases=0
+    if [ -f "build-phases-v3.json" ]; then
+        # Check if file has content before parsing
+        if [ -s "build-phases-v3.json" ]; then
+            total_phases=$(jq -r '.total_phases // 0' build-phases-v3.json 2>/dev/null || echo "0")
+        else
+            log "ERROR" "Planning file exists but is empty"
+            exit 1
+        fi
+    else
+        log "ERROR" "Planning file not found"
+        exit 1
+    fi
+    
+    if [ "$total_phases" -eq 0 ]; then
         log "ERROR" "No phases found in build plan"
         exit 1
     fi
