@@ -1,282 +1,219 @@
-# Claude Code Builder v2.3.0 - Phase Definitions
+# Claude Code Builder v3.0 Enhanced - Dynamic Phase Definitions
 
-## Phase 1: Project Foundation and Package Structure
+## Overview
 
-**Objective**: Create the complete Python package structure with proper module organization.
+The enhanced Claude Code Builder uses AI-driven dynamic phase planning. This document provides guidance for the AI planning phase, but the actual phases are generated dynamically based on the project requirements and accumulated knowledge from mem0.
 
-**Key Tasks**:
-1. Create package directory structure:
-   ```
-   claude_code_builder/
-   ├── __init__.py
-   ├── __main__.py
-   ├── cli.py
-   ├── main.py
-   ├── models/
-   ├── mcp/
-   ├── research/
-   ├── execution/
-   ├── ui/
-   ├── validation/
-   ├── utils/
-   └── instructions/
-   ```
-2. Create setup.py with entry points for CLI
-3. Create requirements.txt with all dependencies
-4. Create pyproject.toml for modern Python packaging
-5. Create README.md with project overview
-6. Create LICENSE (MIT)
-7. Initialize git repository with .gitignore
-8. Create examples/ directory with specifications
-9. Create tests/ directory for functional tests
-10. Create docs/ directory for documentation
+## Phase 0: Enhanced AI Planning with Research
 
-**Files to Create**:
-- setup.py (with console_scripts entry point)
-- requirements.txt
-- pyproject.toml
-- README.md
-- LICENSE
-- .gitignore
-- claude_code_builder/__init__.py (with version)
-- claude_code_builder/__main__.py
-- claude_code_builder/cli.py (basic Click app)
-- claude_code_builder/main.py (ClaudeCodeBuilder class skeleton)
+**Objective**: Create optimal build strategy using memory and research integration.
 
-**Memory Storage**: Store package structure and configuration
-
-## Phase 2: Data Models and Types
-
-**Objective**: Implement all data models in separate, well-organized modules.
+**Mandatory Workflow**:
+1. **CHECK MEM0 FIRST**: Search for similar projects and patterns
+2. **RESEARCH VIA CONTEXT7**: Get latest documentation and best practices  
+3. **PLAN WITH KNOWLEDGE**: Create phases that incorporate found patterns
+4. **STORE LEARNINGS**: Save planning decisions in mem0
 
 **Key Tasks**:
-1. Create models package with all data classes
-2. Implement enumerations (BuildStatus, ErrorLevel)
-3. Create data classes with validation and rich formatting
-4. Define type aliases and protocols
-5. Implement serialization/deserialization methods
+1. Execute `check_mem0_memory()` for relevant project patterns
+2. Use context7 to research best practices for detected technologies
+3. Analyze project specification with accumulated knowledge
+4. Generate optimal phase breakdown (typically 12-20 phases)
+5. Create detailed task lists incorporating research findings
+6. Store planning insights in mem0 for future projects
+7. Initialize git repository with enhanced .gitignore
+8. Create build-phases-v3.json with research-informed phases
+9. Generate build-strategy-v3.md with memory and research insights
 
-**Files to Create**:
-- claude_code_builder/models/__init__.py
-- claude_code_builder/models/build_status.py (BuildStatus enum)
-- claude_code_builder/models/tool_call.py (ToolCall dataclass)
-- claude_code_builder/models/build_stats.py (BuildStats dataclass)
-- claude_code_builder/models/cost_tracker.py (CostTracker class)
-- claude_code_builder/models/phase.py (Phase dataclass)
-- claude_code_builder/models/project_memory.py (ProjectMemory class)
-- claude_code_builder/models/research.py (ResearchQuery, ResearchResult)
-- claude_code_builder/models/mcp.py (MCPRecommendation, MCPServerInfo)
+**Output Files**:
+- `build-phases-v3.json` - AI-generated phase definitions
+- `build-strategy-v3.md` - Strategy document with research findings
+- `.mcp.json` - Enhanced MCP server configuration
+- `.gitignore` - Comprehensive ignore patterns
 
-**Memory Storage**: Store model definitions and relationships
+## Dynamic Phase Template
 
-## Phase 3: MCP System Implementation
+Each AI-generated phase follows this enhanced structure:
 
-**Objective**: Implement Model Context Protocol server discovery and configuration.
+```json
+{
+    "number": 1,
+    "name": "Foundation with Memory Integration",
+    "objective": "Set up project foundation with mem0 integration",
+    "includes_research": true,
+    "research_topics": [
+        "Python package best practices",
+        "Click CLI patterns",
+        "Async/await in Python"
+    ],
+    "memory_points": [
+        "Package structure decisions",
+        "Dependency choices", 
+        "Architecture patterns used"
+    ],
+    "tasks": [
+        "Create package directory structure",
+        "Set up requirements.txt with researched dependencies",
+        "Initialize __init__.py with version",
+        "Create setup.py with entry points",
+        "Add comprehensive .gitignore"
+    ],
+    "dependencies": [],
+    "git_commit_message": "feat: Initialize project foundation with memory integration",
+    "estimated_duration": "5-8 minutes",
+    "complexity": 3
+}
+```
 
-**Key Tasks**:
-1. Create MCP package with server registry
-2. Implement recommendation engine
-3. Create configuration generator
-4. Add server discovery methods
-5. Implement installation functionality
+## Enhanced Phase Requirements
 
-**Files to Create**:
-- claude_code_builder/mcp/__init__.py
-- claude_code_builder/mcp/server_registry.py (MCP_SERVER_REGISTRY constant)
-- claude_code_builder/mcp/recommendation_engine.py (MCPRecommendationEngine class)
-- claude_code_builder/mcp/config_generator.py (configuration templates)
-- claude_code_builder/mcp/discovery.py (server discovery methods)
-- claude_code_builder/mcp/installer.py (npm installation wrapper)
+### Every Phase Must:
 
-**Memory Storage**: Store MCP configurations and discovered servers
+1. **Memory Integration**:
+   - Check mem0 for relevant patterns before implementation
+   - Store key decisions and learnings in mem0
+   - Apply knowledge from previous similar projects
 
-## Phase 4: Research System
+2. **Research Integration**:
+   - Use context7 for documentation lookup when needed
+   - Follow mem0 → context7 → web → store workflow
+   - Document all research findings
 
-**Objective**: Implement AI-powered research with specialized agents.
+3. **Tool Logging**:
+   - Provide rationale for every tool use
+   - Explain expected outcomes
+   - Track actual results achieved
 
-**Key Tasks**:
-1. Create research package structure
-2. Implement base ResearchAgent class
-3. Create all 7 specialized agents
-4. Implement ResearchManager for coordination
-5. Add result synthesis and caching
+4. **Production Standards**:
+   - NO mock implementations - everything REAL and FUNCTIONAL
+   - NO unit tests - integration and E2E tests ONLY
+   - NO placeholders or TODO comments
+   - Complete, production-ready implementations
 
-**Files to Create**:
-- claude_code_builder/research/__init__.py
-- claude_code_builder/research/base_agent.py (ResearchAgent base class)
-- claude_code_builder/research/agents.py (all 7 specialized agents)
-- claude_code_builder/research/manager.py (ResearchManager class)
-- claude_code_builder/research/prompts.py (research prompt templates)
-- claude_code_builder/research/synthesis.py (result synthesis)
+5. **Git Integration**:
+   - Commit all changes with detailed messages
+   - Include phase duration and memory points
+   - Reference specific files created/modified
 
-**Memory Storage**: Store research findings and agent configurations
+6. **Cost Tracking**:
+   - Monitor API usage and costs
+   - Identify optimization opportunities
+   - Track tool efficiency metrics
 
-## Phase 5: Custom Instructions System
+## Typical Phase Categories
 
-**Objective**: Create flexible instruction management system.
+### Foundation Phases (1-3)
+- Project structure setup
+- Build system configuration
+- Dependency management
+- Basic file creation
 
-**Key Tasks**:
-1. Create instructions package
-2. Implement instruction manager
-3. Define default instruction sets
-4. Add pattern matching and priority system
-5. Create instruction merging logic
+### Core Implementation (4-10)
+- Main application logic
+- Data models and types
+- Business logic implementation
+- API development
 
-**Files to Create**:
-- claude_code_builder/instructions/__init__.py
-- claude_code_builder/instructions/manager.py (CustomInstructionManager)
-- claude_code_builder/instructions/defaults.py (DEFAULT_INSTRUCTIONS)
-- claude_code_builder/instructions/patterns.py (pattern matching)
-- claude_code_builder/instructions/templates.py (instruction templates)
+### Integration Phases (11-15)
+- External service integration
+- Database setup
+- Authentication systems
+- API endpoints
 
-**Memory Storage**: Store custom instructions and contexts
+### Quality Assurance (16-18)
+- Testing implementation (integration/E2E only)
+- Error handling enhancement
+- Performance optimization
+- Security implementation
 
-## Phase 6: Execution System
+### Finalization (19-20)
+- Documentation completion
+- Build verification
+- Deployment preparation
+- Final validation
 
-**Objective**: Implement Claude Code execution and streaming.
+## Research-Informed Phase Planning
 
-**Key Tasks**:
-1. Create execution package
-2. Implement Claude Code executor
-3. Create streaming message handler
-4. Add phase runner with retry logic
-5. Implement subprocess management
+### Technology Analysis
+AI planning phase will research:
+- Best practices for detected technology stack
+- Common architectural patterns
+- Performance optimization techniques
+- Security implementation standards
+- Testing strategies (integration-focused)
 
-**Files to Create**:
-- claude_code_builder/execution/__init__.py
-- claude_code_builder/execution/executor.py (ClaudeCodeExecutor)
-- claude_code_builder/execution/streaming.py (StreamingMessageHandler)
-- claude_code_builder/execution/phase_runner.py (PhaseRunner)
-- claude_code_builder/execution/subprocess_manager.py (process management)
-- claude_code_builder/execution/prompt_builder.py (prompt construction)
+### Memory-Informed Decisions
+AI will check mem0 for:
+- Previous implementations of similar features
+- Known working patterns and configurations
+- Performance optimizations discovered
+- Common pitfalls and their solutions
+- Successful architectural decisions
 
-**Memory Storage**: Store execution state and results
+### Context7 Documentation
+AI will lookup current documentation for:
+- Framework-specific best practices
+- Latest API patterns and conventions
+- Security recommendations
+- Performance optimization guides
+- Testing framework documentation
 
-## Phase 7: UI and Progress System
+## Production Standards Enforcement
 
-**Objective**: Create beautiful Rich-based terminal UI.
+### Every Phase Implementation Must:
 
-**Key Tasks**:
-1. Create UI package with Rich components
-2. Implement progress tracking
-3. Create display layouts
-4. Add real-time updates
-5. Implement report generation
+```bash
+REQUIREMENTS (PRODUCTION STANDARDS - NO EXCEPTIONS):
+- Check mem0 for any relevant patterns before implementing
+- NO mock implementations - everything must be REAL and FUNCTIONAL
+- NO unit tests - create integration and E2E tests ONLY
+- Use REAL APIs, databases, and services (no simulations)
+- Implement all functionality completely (NO placeholders, NO TODOs)
+- Include comprehensive error handling with retry logic
+- Add production-grade logging to stdout/stderr
+- Use environment variables for ALL configuration
+- Implement proper security (input validation, auth, etc.)
+- Ensure cloud-ready architecture with health checks
+- Store important patterns and decisions in mem0
+```
 
-**Files to Create**:
-- claude_code_builder/ui/__init__.py
-- claude_code_builder/ui/console.py (RichConsole wrapper)
-- claude_code_builder/ui/progress.py (progress bars and tracking)
-- claude_code_builder/ui/display.py (panels, tables, layouts)
-- claude_code_builder/ui/banner.py (ASCII art banner)
-- claude_code_builder/ui/reports.py (report formatting)
+### Tool Usage Guidelines
 
-**Memory Storage**: Store UI state and preferences
+Every tool operation must include:
+- **WHY**: Rationale for using this specific tool
+- **WHAT**: Expected outcome from the operation
+- **HOW**: Specific parameters and their reasoning
+- **RESULT**: What was actually learned or achieved
 
-## Phase 8: Validation System
+### Memory Storage Points
 
-**Objective**: Implement comprehensive project validation.
+Each phase must store in mem0:
+- Working code patterns discovered
+- Architecture decisions made
+- Performance optimizations applied
+- Security implementations used
+- Integration patterns that worked
+- Common errors encountered and fixes
 
-**Key Tasks**:
-1. Create validation package
-2. Implement all validation checks
-3. Create test runner integration
-4. Add security scanning
-5. Generate validation reports
+## Example Enhanced Phase Execution
 
-**Files to Create**:
-- claude_code_builder/validation/__init__.py
-- claude_code_builder/validation/validator.py (ProjectValidator)
-- claude_code_builder/validation/checks.py (all validation checks)
-- claude_code_builder/validation/test_runner.py (test execution)
-- claude_code_builder/validation/security.py (security scans)
-- claude_code_builder/validation/reports.py (validation reporting)
+### Phase Workflow:
+1. **Load Context**: Previous phase memory and accumulated learnings
+2. **Check mem0**: Search for relevant patterns (e.g., "FastAPI authentication", "Docker setup")
+3. **Research Context7**: Get latest documentation for libraries being used
+4. **Execute with Logging**: Implement with detailed rationale for each step
+5. **Store Learnings**: Save new patterns and decisions to mem0
+6. **Git Commit**: Version control with comprehensive commit message
+7. **Track Costs**: Record API usage and identify optimization opportunities
 
-**Memory Storage**: Store validation results
+### Example Tool Logging:
+```bash
+log("TOOL", "Using filesystem__write_file to create app.py")
+log("TOOL", "Rationale: FastAPI application needs main entry point based on mem0 pattern #342")
+log("TOOL", "Expected: Production-ready FastAPI app with proper error handling")
+# ... execute tool ...
+log("TOOL", "Result: Created app.py with async endpoints and middleware")
+log("MEMORY", "Storing FastAPI app pattern for future projects")
+```
 
-## Phase 9: Utilities and Helpers
-
-**Objective**: Create utility modules and helper functions.
-
-**Key Tasks**:
-1. Create utils package
-2. Define constants and configurations
-3. Implement exception hierarchy
-4. Add helper functions
-5. Create common utilities
-
-**Files to Create**:
-- claude_code_builder/utils/__init__.py
-- claude_code_builder/utils/constants.py (TOKEN_COSTS, other constants)
-- claude_code_builder/utils/exceptions.py (custom exceptions)
-- claude_code_builder/utils/helpers.py (utility functions)
-- claude_code_builder/utils/git.py (git operations)
-- claude_code_builder/utils/filesystem.py (file operations)
-
-**Memory Storage**: Store utility configurations
-
-## Phase 10: Main Application Integration
-
-**Objective**: Integrate all components in the main application.
-
-**Key Tasks**:
-1. Complete main.py with ClaudeCodeBuilder class
-2. Wire up all subsystems
-3. Implement build orchestration
-4. Add signal handlers
-5. Create application lifecycle management
-
-**Files to Update**:
-- claude_code_builder/main.py (complete implementation)
-- claude_code_builder/cli.py (all CLI commands)
-- claude_code_builder/__main__.py (entry point)
-
-**Memory Storage**: Store application state
-
-## Phase 11: Testing and Examples
-
-**Objective**: Create comprehensive tests and examples.
-
-**Key Tasks**:
-1. Create functional test suite
-2. Add example specifications
-3. Create test utilities
-4. Implement integration tests
-5. Add performance tests
-
-**Files to Create**:
-- tests/__init__.py
-- tests/functional/test_build.py
-- tests/functional/test_mcp.py
-- tests/functional/test_research.py
-- tests/integration/test_full_build.py
-- examples/simple-api-spec.md
-- examples/web-app-spec.md
-- examples/cli-tool-spec.md
-- examples/microservice-spec.md
-
-**Memory Storage**: Store test results
-
-## Phase 12: Documentation and Polish
-
-**Objective**: Complete documentation and final polish.
-
-**Key Tasks**:
-1. Complete README.md with full documentation
-2. Create architecture documentation
-3. Generate API reference
-4. Add contribution guidelines
-5. Create deployment guide
-6. Final code review and cleanup
-
-**Files to Create/Update**:
-- README.md (comprehensive documentation)
-- docs/architecture.md
-- docs/api-reference.md
-- docs/deployment.md
-- CONTRIBUTING.md
-- scripts/run-tests.sh
-- scripts/build-docs.sh
-
-**Final Validation**: Ensure all components work together
-**Git Tag**: v2.3.0 release
+The AI planning phase creates a customized, research-informed build strategy that learns from every project and applies best practices discovered through memory and documentation research.
