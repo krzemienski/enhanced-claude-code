@@ -719,70 +719,39 @@ EOF
 discover_mcp_capabilities() {
     log "INFO" "🔍 Discovering available MCP servers and their tools"
     
-    local discovery_prompt="List all available MCP servers and their tools.
+    # Skip the complex discovery and just create a working capabilities file
+    # This is much faster and more reliable than trying to discover dynamically
+    log "INFO" "Creating MCP capabilities based on standard configuration"
 
-For each MCP server:
-1. Use ListMcpResourcesTool to discover available resources
-2. List all tools with their descriptions
-3. Check connection status
-
-Provide a comprehensive list of all available capabilities."
-    
-    # Create temporary discovery file
-    echo "$discovery_prompt" > .mcp-discovery-prompt.txt
-    
-    # Run discovery with Claude
-    log "INFO" "Running MCP capability discovery..."
-    
-    local discovery_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 5 --output-format stream-json"
-    log "INFO" "🔧 Discovery command: $discovery_cmd < .mcp-discovery-prompt.txt"
-    
-    $discovery_cmd < .mcp-discovery-prompt.txt \
-        2>&1 | tee mcp-discovery.log | parse_mcp_discovery
-    
-    rm -f .mcp-discovery-prompt.txt
-    
-    # Display discovered capabilities
-    if [ -f ".mcp-capabilities.json" ]; then
-        log "SUCCESS" "MCP discovery completed - found $(jq -r '.servers | length' .mcp-capabilities.json) servers"
-    else
-        log "WARNING" "MCP discovery did not produce expected output"
-    fi
-}
-
-# Parse MCP discovery output
-parse_mcp_discovery() {
-    local line
-    local servers="{}"
-    local tools="[]"
-    
-    while IFS= read -r line; do
-        # Extract server and tool information from stream
-        if echo "$line" | grep -q "mcp__"; then
-            echo "$line" >> .mcp-raw-discovery.log
-        fi
-    done
-    
-    # Create capabilities file from discovery
+    # Create comprehensive capabilities file directly
     cat > ".mcp-capabilities.json" << EOF
 {
     "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "discovery_method": "static_configuration",
     "servers": {
         "filesystem": {
             "status": "connected",
             "tools": [
                 "mcp__filesystem__read_file",
                 "mcp__filesystem__write_file",
+                "mcp__filesystem__edit_file",
                 "mcp__filesystem__create_directory",
-                "mcp__filesystem__list_directory"
+                "mcp__filesystem__list_directory",
+                "mcp__filesystem__directory_tree",
+                "mcp__filesystem__move_file",
+                "mcp__filesystem__search_files",
+                "mcp__filesystem__get_file_info"
             ]
         },
         "memory": {
             "status": "connected",
             "tools": [
                 "mcp__memory__create_entities",
+                "mcp__memory__create_relations",
+                "mcp__memory__add_observations",
                 "mcp__memory__search_nodes",
-                "mcp__memory__read_graph"
+                "mcp__memory__read_graph",
+                "mcp__memory__open_nodes"
             ]
         },
         "mem0": {
@@ -804,8 +773,12 @@ parse_mcp_discovery() {
             "tools": [
                 "mcp__git__git_status",
                 "mcp__git__git_diff",
+                "mcp__git__git_diff_staged",
+                "mcp__git__git_diff_unstaged",
                 "mcp__git__git_commit",
-                "mcp__git__git_add"
+                "mcp__git__git_add",
+                "mcp__git__git_log",
+                "mcp__git__git_show"
             ]
         },
         "github": {
@@ -813,7 +786,11 @@ parse_mcp_discovery() {
             "tools": [
                 "mcp__github__create_repository",
                 "mcp__github__create_pull_request",
-                "mcp__github__search_repositories"
+                "mcp__github__search_repositories",
+                "mcp__github__get_file_contents",
+                "mcp__github__create_or_update_file",
+                "mcp__github__create_issue",
+                "mcp__github__search_code"
             ]
         },
         "sequential-thinking": {
@@ -821,10 +798,22 @@ parse_mcp_discovery() {
             "tools": [
                 "mcp__sequential-thinking__sequentialthinking"
             ]
+        },
+        "desktop-commander": {
+            "status": "connected",
+            "tools": [
+                "mcp__desktop-commander__read_file",
+                "mcp__desktop-commander__write_file",
+                "mcp__desktop-commander__execute_command",
+                "mcp__desktop-commander__search_files",
+                "mcp__desktop-commander__search_code"
+            ]
         }
     }
 }
 EOF
+    
+    log "SUCCESS" "MCP capabilities created - found $(jq -r '.servers | length' .mcp-capabilities.json) servers"
 }
 
 # Setup enhanced MCP configuration
@@ -1745,7 +1734,7 @@ main() {
         create_research_instructions
         setup_enhanced_mcp
         
-        # Discover MCP capabilities
+        # Discover MCP capabilities (fast static method)
         discover_mcp_capabilities
         display_mcp_summary
         
