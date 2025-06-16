@@ -420,25 +420,103 @@ save_memory_state() {
         mv "${MEMORY_FILE}.tmp" "$MEMORY_FILE"
 }
 
-# Check mem0 for existing knowledge
+# Enhanced mem0 memory system with proper storage and retrieval
 check_mem0_memory() {
     local topic=$1
+    local phase_context="$2"
     
-    log "MEMORY" "Checking mem0 for existing knowledge about: $topic"
+    log "MEMORY" "🧠 Performing comprehensive mem0 search for: $topic"
+    log "MEMORY" "Rationale: Following CLAUDE.md memory-first approach - always check existing knowledge before proceeding"
     
-    # Create a temporary prompt to check memory
-    local memory_check_prompt="Search mem0 memory for any existing knowledge about: $topic
+    # Create comprehensive memory search prompt
+    local memory_search_prompt="MEMORY-FIRST RESEARCH TASK
 
-Use the mem0__search-memories tool to find relevant information.
-Return a summary of what was found or indicate if no relevant memories exist."
-    
-    echo "$memory_check_prompt" | claude \
+Primary search topic: $topic
+Phase context: $phase_context
+
+INSTRUCTIONS:
+1. Use mcp__mem0__search-memories to search for ALL relevant knowledge about:
+   - '$topic' (exact match)
+   - Related project patterns and architectures
+   - Similar build processes and tools
+   - Known issues, solutions, and best practices
+   - Performance optimizations and security patterns
+
+2. Search multiple times with different keyword combinations:
+   - Primary keywords from topic
+   - Technical terms and frameworks mentioned
+   - Common implementation patterns
+   - Error patterns and solutions
+
+3. For each search result found, provide:
+   - Summary of the knowledge
+   - Relevance to current task (1-10 scale)
+   - How this information should influence our approach
+   - What specific patterns or solutions to apply
+
+4. If NO relevant memories found, explicitly state:
+   - 'No relevant memories found for [specific search terms]'
+   - Recommend what new knowledge should be captured
+
+5. End with actionable recommendations:
+   - What existing knowledge to apply immediately
+   - What research gaps need to be filled
+   - What new patterns should be documented
+
+REMEMBER: This is production work - we need ALL available knowledge to avoid repeating mistakes and leverage proven solutions."
+
+    echo "$memory_search_prompt" | claude \
         --model "$MODEL_SONNET_4" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
-        --max-turns 3 \
+        --max-turns 10 \
         --output-format stream-json \
-        2>&1 | tee mem0-check.log | parse_enhanced_stream_output
+        2>&1 | tee "mem0-search-${topic//[^a-zA-Z0-9]/_}.log" | parse_enhanced_stream_output
+}
+
+# Store knowledge in mem0 with proper categorization
+store_mem0_knowledge() {
+    local content="$1"
+    local category="$2"
+    local project_context="$3"
+    
+    log "MEMORY" "💾 Storing knowledge in mem0: $category"
+    log "MEMORY" "Rationale: Following CLAUDE.md requirement to store ALL learnings for future projects"
+    
+    # Create comprehensive storage prompt
+    local storage_prompt="KNOWLEDGE STORAGE TASK
+
+Store the following knowledge in mem0 with proper categorization:
+
+CONTENT TO STORE:
+$content
+
+CATEGORY: $category
+PROJECT CONTEXT: $project_context
+
+INSTRUCTIONS:
+1. Use mcp__mem0__add-memory to store this knowledge
+2. Make the memory entry comprehensive and searchable
+3. Include relevant keywords and tags
+4. Structure the content so future searches will find it easily
+5. Add context about when/why this knowledge was valuable
+
+Format the memory entry to include:
+- Clear description of what was learned
+- Technical details and implementation specifics  
+- Context of when this applies
+- Keywords for future searches
+- Any warnings or important notes
+
+Store this knowledge so future projects can benefit from these learnings."
+
+    echo "$storage_prompt" | claude \
+        --model "$MODEL_SONNET_4" \
+        --mcp-config .mcp.json \
+        --dangerously-skip-permissions \
+        --max-turns 5 \
+        --output-format stream-json \
+        2>&1 | tee "mem0-store-${category//[^a-zA-Z0-9]/_}.log" | parse_enhanced_stream_output
 }
 
 # Create the enhanced specification
@@ -925,9 +1003,12 @@ EOF
 execute_enhanced_ai_planning() {
     log "PHASE" "Phase 0: AI-Driven Planning with Research"
     
-    # Check mem0 for similar projects if not skipped
+    # Enhanced mem0 check for similar projects if not skipped
     if [ "$SKIP_MEM0_CHECK" = false ]; then
-        check_mem0_memory "Claude Code Builder project structure autonomous builder Python"
+        log "MEMORY" "🔍 Phase 0: Comprehensive memory search before planning"
+        check_mem0_memory "Claude Code Builder autonomous project builder Python packaging architecture" "AI-driven planning phase"
+        check_mem0_memory "shell script builders automation tools Claude integration" "Build system design"
+        check_mem0_memory "MCP server integration memory-first workflows context7" "Research system design"
     fi
     
     local planning_prompt=$(cat << 'EOF'
@@ -1026,6 +1107,16 @@ Now create the optimal build plan with full memory and research integration."
     # Verify planning files were created
     if [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
         log "SUCCESS" "AI planning with research completed successfully"
+        
+        # Store planning knowledge in mem0 for future projects
+        if [ "$SKIP_MEM0_CHECK" = false ]; then
+            log "MEMORY" "💾 Storing planning insights in mem0 for future projects"
+            local planning_summary=$(head -n 50 build-strategy-v3.md | tail -n +10)
+            store_mem0_knowledge "$planning_summary" "Claude Code Builder Planning Patterns" "Enhanced shell script builder v3.0"
+            
+            local phase_info=$(jq -r '.phases[] | "\(.name): \(.objective)"' build-phases-v3.json 2>/dev/null | head -10)
+            store_mem0_knowledge "$phase_info" "AI Build Phase Patterns" "Autonomous project builder architecture"
+        fi
         
         # Commit planning files (only if there are changes)
         git add build-phases-v3.json build-strategy-v3.md
@@ -1585,6 +1676,26 @@ Phase Details:
 🤖 Generated with Claude Code Builder v3.0 Enhanced
 Co-Authored-By: Claude <noreply@anthropic.com>" || log "GIT" "No changes to commit"
         log "GIT" "Committed phase $phase_num changes with enhanced details"
+        
+        # Store phase learnings in mem0 for future projects
+        if [ "$SKIP_MEM0_CHECK" = false ]; then
+            log "MEMORY" "💾 Storing phase $phase_num learnings in mem0"
+            local phase_summary="Phase $phase_num ($phase_name) completed successfully in ${phase_duration}s. 
+Cost: $phase_cost. Key outputs and patterns learned during this phase can inform future similar work."
+            store_mem0_knowledge "$phase_summary" "Build Phase $phase_num Completion" "Claude Code Builder v3.0 - $phase_name"
+            
+            # Store any significant files created (first 500 chars of each)
+            if [ -d "." ]; then
+                local new_files=$(find . -name "*.py" -o -name "*.sh" -o -name "*.md" -o -name "*.json" -newer "phase-$phase_num-start.marker" 2>/dev/null | head -5)
+                if [ -n "$new_files" ]; then
+                    local files_content=""
+                    for file in $new_files; do
+                        files_content+="\n\n=== $file ===\n$(head -c 500 "$file" 2>/dev/null)"
+                    done
+                    store_mem0_knowledge "$files_content" "Phase $phase_num Artifacts" "Generated files and code patterns"
+                fi
+            fi
+        fi
         
         # Save build state with cost data
         local cost_summary=$(jq -r '.phases[-1] // {}' ".cost-tracking.json" 2>/dev/null || echo '{}')
