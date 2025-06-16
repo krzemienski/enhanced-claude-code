@@ -45,9 +45,9 @@ STATE_FILE=".build-state-v3-enhanced.json"
 MEMORY_FILE=".build-memory-v3.json"
 
 # Build configuration
-MAX_TURNS=75
+MAX_TURNS=100  # Increased for complex operations
 FUNCTIONAL_TEST_TIMEOUT=1800  # 30 minutes
-RESEARCH_TIMEOUT=300  # 5 minutes per research query
+RESEARCH_TIMEOUT=600  # 10 minutes per research query
 
 # Default values
 OUTPUT_DIR="$(pwd)"
@@ -761,7 +761,7 @@ Now create the optimal build plan with full memory and research integration."
         --model "$MODEL" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
-        --max-turns 30 \
+        --max-turns 50 \
         --output-format stream-json \
         --verbose \
         2>&1 | tee planning-output.log | parse_enhanced_stream_output
@@ -786,16 +786,31 @@ Now create the optimal build plan with full memory and research integration."
     fi
 }
 
-# Enhanced stream parser with tool rationale
+# Enhanced stream parser with tool rationale and progress tracking
 parse_enhanced_stream_output() {
     local line
     local in_tool_use=false
     local current_tool=""
     local buffer=""
+    local last_update=$(date +%s)
+    local update_interval=5  # Show progress every 5 seconds
+    local char_count=0
+    local line_count=0
     
     while IFS= read -r line; do
         # Skip empty lines
         [ -z "$line" ] && continue
+        
+        # Increment counters
+        line_count=$((line_count + 1))
+        char_count=$((char_count + ${#line}))
+        
+        # Show periodic progress updates
+        local now=$(date +%s)
+        if [ $((now - last_update)) -ge $update_interval ]; then
+            echo -e "${DIM}   [PROGRESS] Processing... (${line_count} events, ${char_count} chars)${NC}" >&2
+            last_update=$now
+        fi
         
         # Try to parse as JSON and extract message content
         if command -v jq >/dev/null 2>&1; then
@@ -827,6 +842,10 @@ parse_enhanced_stream_output() {
                                 echo -e "\n${ORANGE}📝 [VERSION CONTROL]${NC} ${BOLD}$current_tool${NC}"
                                 log "GIT" "Git operation: $current_tool"
                                 ;;
+                            sequential_thinking__*)
+                                echo -e "\n${PURPLE}🤔 [DEEP THINKING]${NC} ${BOLD}$current_tool${NC}"
+                                log "TOOL" "Sequential thinking: $current_tool"
+                                ;;
                             *)
                                 echo -e "\n${CYAN}🔧 [TOOL USE]${NC} ${BOLD}$current_tool${NC}"
                                 log "TOOL" "Using tool: $current_tool"
@@ -843,21 +862,40 @@ parse_enhanced_stream_output() {
                         if [ -n "$text" ]; then
                             # Accumulate text for better display
                             buffer="$buffer$text"
-                            # Display complete sentences
-                            if echo "$text" | grep -q '[.!?]'; then
-                                echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                            
+                            # Display when we have substantial content or reach punctuation
+                            if [ ${#buffer} -gt 200 ] || echo "$text" | grep -q '[.!?]'; then
+                                # Truncate very long messages but show the essence
+                                if [ ${#buffer} -gt 500 ]; then
+                                    local truncated="${buffer:0:497}..."
+                                    echo -e "${GREEN}💬 [CLAUDE]${NC} $truncated"
+                                else
+                                    echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                                fi
                                 buffer=""
                             fi
+                        fi
+                    else
+                        # Show tool input progress
+                        local input_delta=$(echo "$line" | jq -r '.delta.partial_json // empty' 2>/dev/null)
+                        if [ -n "$input_delta" ] && [ ${#input_delta} -gt 50 ]; then
+                            echo -e "${DIM}   → Configuring: ${input_delta:0:47}...${NC}"
                         fi
                     fi
                     ;;
                     
                 "content_block_stop")
                     if [ "$in_tool_use" = true ]; then
-                        echo -e "${DIM}   → Tool parameters configured${NC}"
+                        echo -e "${DIM}   → Tool execution completed${NC}"
                         in_tool_use=false
                     elif [ -n "$buffer" ]; then
-                        echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                        # Display any remaining buffer content
+                        if [ ${#buffer} -gt 500 ]; then
+                            local truncated="${buffer:0:497}..."
+                            echo -e "${GREEN}💬 [CLAUDE]${NC} $truncated"
+                        else
+                            echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
+                        fi
                         buffer=""
                     fi
                     ;;
@@ -867,16 +905,32 @@ parse_enhanced_stream_output() {
                         echo -e "${GREEN}💬 [CLAUDE]${NC} $buffer"
                         buffer=""
                     fi
+                    echo -e "${DIM}   [Turn completed - ${line_count} events processed]${NC}"
+                    ;;
+                    
+                "error")
+                    local error_msg=$(echo "$line" | jq -r '.error.message // empty' 2>/dev/null)
+                    if [ -n "$error_msg" ]; then
+                        echo -e "${RED}❌ [ERROR]${NC} $error_msg"
+                    fi
                     ;;
             esac
         else
-            # Fallback: simple text processing without jq
-            echo "$line"
+            # Fallback: show raw output if no jq
+            # But truncate very long lines
+            if [ ${#line} -gt 200 ]; then
+                echo "${line:0:197}..."
+            else
+                echo "$line"
+            fi
         fi
         
         # Save to raw log for debugging
         echo "$line" >> raw-stream.log
     done
+    
+    # Final progress update
+    echo -e "${DIM}   [Stream completed - Total: ${line_count} events, ${char_count} chars]${NC}" >&2
 }
 
 # Display tool parameters in a readable format
@@ -941,7 +995,7 @@ For each topic:
 
 Output a summary of all findings that will inform the build process."
     
-    echo "$research_prompt" | timeout $RESEARCH_TIMEOUT claude \
+    echo "$research_prompt" | timeout --foreground $RESEARCH_TIMEOUT claude \
         --model "$MODEL" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
