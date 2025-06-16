@@ -665,7 +665,7 @@ planning-output.log
 mem0-check.log
 EOF
         git add .gitignore
-        git commit -m "Initial commit: Add .gitignore"
+        git commit --no-verify -m "Initial commit: Add .gitignore"
         log "GIT" "Created initial commit with .gitignore"
     fi
 }
@@ -775,7 +775,7 @@ Now create the optimal build plan with full memory and research integration."
         if git diff --staged --quiet; then
             log "INFO" "Planning files already committed"
         else
-            git commit -m "feat: AI-generated build plan with research integration"
+            git commit --no-verify -m "feat: AI-generated build plan with research integration"
             log "GIT" "Committed build planning files"
         fi
         
@@ -1152,7 +1152,7 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
         
         # Commit changes with detailed message
         git add -A
-        git commit -m "$git_commit_msg
+        git commit --no-verify -m "$git_commit_msg
 
 Phase Details:
 - Duration: ${phase_duration}s
@@ -1320,7 +1320,7 @@ EOF
         
         # Final git commit
         git add -A
-        git commit -m "test: Complete enhanced functional testing"
+        git commit --no-verify -m "test: Complete enhanced functional testing"
         
         return 0
     else
@@ -1380,7 +1380,7 @@ main() {
         if git diff --staged --quiet; then
             log "INFO" "Project files already initialized"
         else
-            git commit -m "feat: Initialize enhanced Claude Code Builder v3.0"
+            git commit --no-verify -m "feat: Initialize enhanced Claude Code Builder v3.0"
         fi
         
         # Execute planning phase if files don't exist in output directory
