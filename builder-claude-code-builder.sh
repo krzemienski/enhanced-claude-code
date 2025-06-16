@@ -40,14 +40,27 @@ NC="\033[0m"
 # Configuration
 PROJECT_NAME="claude-code-builder"
 VERSION="3.0.0-enhanced"
-MODEL="claude-3-5-sonnet-20241022"
+
+# Model configuration
+MODEL_OPUS_4="claude-opus-4-20250514"  # For complex tasks
+MODEL_SONNET_4="claude-3-5-sonnet-20241022"  # For simple tasks
+DEFAULT_MODEL="$MODEL_OPUS_4"  # Default to Opus 4 for quality
+
+# State files
 STATE_FILE=".build-state-v3-enhanced.json"
 MEMORY_FILE=".build-memory-v3.json"
 
 # Cost tracking (prices per 1M tokens as of Dec 2024)
-# Claude 3.5 Sonnet pricing
-INPUT_COST_PER_1M=3.00   # $3.00 per 1M input tokens
-OUTPUT_COST_PER_1M=15.00 # $15.00 per 1M output tokens
+# Opus 4 pricing
+OPUS_INPUT_COST_PER_1M=15.00   # $15.00 per 1M input tokens
+OPUS_OUTPUT_COST_PER_1M=75.00  # $75.00 per 1M output tokens
+# Sonnet 3.5 pricing
+SONNET_INPUT_COST_PER_1M=3.00   # $3.00 per 1M input tokens
+SONNET_OUTPUT_COST_PER_1M=15.00 # $15.00 per 1M output tokens
+
+# Initialize with Opus pricing (planning phase uses Opus)
+INPUT_COST_PER_1M=$OPUS_INPUT_COST_PER_1M
+OUTPUT_COST_PER_1M=$OPUS_OUTPUT_COST_PER_1M
 TOTAL_INPUT_TOKENS=0
 TOTAL_OUTPUT_TOKENS=0
 TOTAL_COST=0.00
@@ -163,7 +176,7 @@ show_banner() {
 ║  • Persistent memory across all phases                                    ║
 ║                                                                           ║
 EOF
-    echo -e "║  Model: ${BOLD}$MODEL${CYAN}                           ║"
+    echo -e "║  Models: ${BOLD}Opus 4${CYAN} (complex) & ${BOLD}Sonnet 4${CYAN} (simple)              ║"
     if [ "$API_KEY_MODE" = true ]; then
         echo -e "║  Mode: ${YELLOW}API Key${CYAN} (\$3/\$15 per 1M tokens)                               ║"
     elif [ -n "$FALLBACK_API_KEY" ]; then
@@ -215,6 +228,48 @@ log() {
             echo -e "${ORANGE}[COST]${NC} ${timestamp} 💰 $message"
             ;;
     esac
+}
+
+# Determine model based on phase complexity
+determine_model_for_phase() {
+    local phase_num=$1
+    local phase_name="$2"
+    
+    # Complex phases that require Opus 4
+    local complex_phases=(
+        "AI Planning & Research"
+        "AI-Driven Planning with Research"
+        "Core Architecture"
+        "Research Integration"
+        "Memory System"
+        "MCP Integration"
+        "Execution Engine"
+        "Integration Testing"
+    )
+    
+    # Check if phase is complex
+    local is_complex=false
+    for complex in "${complex_phases[@]}"; do
+        if [[ "$phase_name" == *"$complex"* ]]; then
+            is_complex=true
+            break
+        fi
+    done
+    
+    # Planning phase (0) always uses Opus 4 for complexity determination
+    if [ "$phase_num" -eq 0 ]; then
+        echo "$MODEL_OPUS_4"
+        INPUT_COST_PER_1M=$OPUS_INPUT_COST_PER_1M
+        OUTPUT_COST_PER_1M=$OPUS_OUTPUT_COST_PER_1M
+    elif [ "$is_complex" = true ]; then
+        echo "$MODEL_OPUS_4"
+        INPUT_COST_PER_1M=$OPUS_INPUT_COST_PER_1M
+        OUTPUT_COST_PER_1M=$OPUS_OUTPUT_COST_PER_1M
+    else
+        echo "$MODEL_SONNET_4"
+        INPUT_COST_PER_1M=$SONNET_INPUT_COST_PER_1M
+        OUTPUT_COST_PER_1M=$SONNET_OUTPUT_COST_PER_1M
+    fi
 }
 
 # Calculate cost from tokens
@@ -315,6 +370,7 @@ track_cost_information() {
 load_build_state() {
     if [ -f "$STATE_FILE" ]; then
         CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE")
+        CURRENT_STATUS=$(jq -r '.status // "unknown"' "$STATE_FILE")
         local saved_output_dir=$(jq -r '.output_dir // "."' "$STATE_FILE")
         
         # Check if output directory was specified in command line
@@ -830,11 +886,13 @@ $research_instructions
 
 Now create the optimal build plan with full memory and research integration."
     
-    log "INFO" "Invoking Claude with research capabilities for planning"
+    log "INFO" "Invoking Claude with Opus 4 for complexity determination and planning"
+    log "INFO" "Using model: $MODEL_OPUS_4"
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
+    # Always use Opus 4 for planning to determine complexity
     echo "$full_prompt" | claude \
-        --model "$MODEL" \
+        --model "$MODEL_OPUS_4" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 50 \
@@ -1086,8 +1144,11 @@ For each topic:
 
 Output a summary of all findings that will inform the build process."
     
+    # Research is always complex, use Opus 4
+    log "INFO" "Using model: $MODEL_OPUS_4 (Research requires Opus 4)"
+    
     echo "$research_prompt" | timeout --foreground $RESEARCH_TIMEOUT claude \
-        --model "$MODEL" \
+        --model "$MODEL_OPUS_4" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns 20 \
@@ -1213,6 +1274,9 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
     
     local phase_start=$(date +%s)
     
+    # Determine which model to use based on phase complexity
+    local phase_model=$(determine_model_for_phase "$phase_num" "$phase_name")
+    
     # Set up environment for fallback API key if provided
     local claude_env=""
     if [ -n "$FALLBACK_API_KEY" ] && [ "$API_KEY_MODE" = false ]; then
@@ -1220,11 +1284,15 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
         log "INFO" "Using fallback API key for this phase"
     fi
     
-    # Log model being used
-    log "INFO" "Using model: $MODEL"
+    # Log model being used and why
+    if [ "$phase_model" = "$MODEL_OPUS_4" ]; then
+        log "INFO" "🎯 Using model: $phase_model (Complex task requiring Opus 4)"
+    else
+        log "INFO" "⚡ Using model: $phase_model (Simple task, using efficient Sonnet 4)"
+    fi
     
     echo "$prompt" | env $claude_env claude \
-        --model "$MODEL" \
+        --model "$phase_model" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
         --max-turns "$MAX_TURNS" \
@@ -1459,23 +1527,56 @@ main() {
     # Initialize git repository
     initialize_git_repo
     
-    # Check for resume
+    # Auto-detect existing build and resume if possible
     local start_phase=1
-    if [ "$RESUME_BUILD" = true ] && load_build_state; then
-        start_phase=$CURRENT_PHASE
-        log "INFO" "Resuming from phase $start_phase"
-    elif [ "$RESUME_BUILD" = true ] && [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
-        # Resume requested but no state file, but planning files exist
-        log "INFO" "Resume requested: Planning files found but no state file in $OUTPUT_DIR"
-        # Validate the planning files have content
-        if [ ! -s "build-phases-v3.json" ] || [ ! -s "build-strategy-v3.md" ]; then
-            log "ERROR" "Planning files exist but are empty"
-            exit 1
+    local auto_resumed=false
+    
+    # Check for existing build artifacts
+    if [ -f "$STATE_FILE" ] || [ -f "build-phases-v3.json" ] || [ -f "build-strategy-v3.md" ]; then
+        log "INFO" "🔍 Detected existing build artifacts in $OUTPUT_DIR"
+        echo -e "${CYAN}Found context:${NC}"
+        
+        # List what we found
+        [ -f "$STATE_FILE" ] && echo "  ✓ Build state file"
+        [ -f "build-phases-v3.json" ] && echo "  ✓ Build phases plan ($(jq -r '.total_phases // 0' build-phases-v3.json 2>/dev/null || echo 'unknown') phases)"
+        [ -f "build-strategy-v3.md" ] && echo "  ✓ Build strategy document"
+        [ -f "$MEMORY_FILE" ] && echo "  ✓ Memory from previous phases"
+        [ -d ".git" ] && echo "  ✓ Git repository ($(git rev-list --count HEAD 2>/dev/null || echo '0') commits)"
+        
+        # Try to load state file first
+        if load_build_state; then
+            start_phase=$CURRENT_PHASE
+            auto_resumed=true
+            log "SUCCESS" "✅ Auto-resuming from phase $start_phase (status: $CURRENT_STATUS)"
+            
+            # Show phase history
+            if [ -f "$MEMORY_FILE" ]; then
+                local completed_phases=$(jq -r '.phases | keys | length' "$MEMORY_FILE" 2>/dev/null || echo "0")
+                log "INFO" "Completed phases: $completed_phases"
+            fi
+        elif [ -f "build-phases-v3.json" ] && [ -f "build-strategy-v3.md" ]; then
+            # No state file but planning files exist
+            if [ -s "build-phases-v3.json" ] && [ -s "build-strategy-v3.md" ]; then
+                log "INFO" "Planning files found, assuming planning completed"
+                save_build_state 1 "ready" "Auto-resuming from existing planning files"
+                start_phase=1
+                auto_resumed=true
+                log "SUCCESS" "✅ Auto-resuming from phase 1 with existing plan"
+            else
+                log "ERROR" "Planning files exist but are empty"
+                exit 1
+            fi
         fi
-        log "INFO" "Assuming planning completed, starting from phase 1"
-        save_build_state 1 "ready" "Resuming from existing planning files"
-        start_phase=1
-    else
+        
+        if [ "$auto_resumed" = true ]; then
+            echo -e "\n${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${BOLD}🔄 AUTO-RESUME ACTIVATED${NC}"
+            echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+        fi
+    fi
+    
+    # If not auto-resumed, proceed with fresh start
+    if [ "$auto_resumed" = false ]; then
         # Fresh start - create files
         create_enhanced_specification
         create_research_instructions
