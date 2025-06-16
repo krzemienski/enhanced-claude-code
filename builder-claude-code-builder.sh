@@ -16,7 +16,7 @@
 set -euo pipefail
 
 # Check for required external dependencies
-REQUIRED_TOOLS=("jq" "git" "npx" "claude")
+REQUIRED_TOOLS=("jq" "git" "npx" "claude" "bc")
 for tool in "${REQUIRED_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo -e "\033[0;31mError:\033[0m Required tool '\033[1m$tool\033[0m' is not installed or not in PATH."
@@ -44,6 +44,24 @@ MODEL="claude-3-5-sonnet-20241022"
 STATE_FILE=".build-state-v3-enhanced.json"
 MEMORY_FILE=".build-memory-v3.json"
 
+# Cost tracking (prices per 1M tokens as of Dec 2024)
+# Claude 3.5 Sonnet pricing
+INPUT_COST_PER_1M=3.00   # $3.00 per 1M input tokens
+OUTPUT_COST_PER_1M=15.00 # $15.00 per 1M output tokens
+TOTAL_INPUT_TOKENS=0
+TOTAL_OUTPUT_TOKENS=0
+TOTAL_COST=0.00
+
+# API Key detection
+API_KEY_MODE=false
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    API_KEY_MODE=true
+fi
+
+# Token tracking for last operation
+LAST_INPUT_TOKENS=0
+LAST_OUTPUT_TOKENS=0
+
 # Build configuration
 MAX_TURNS=100  # Increased for complex operations
 FUNCTIONAL_TEST_TIMEOUT=1800  # 30 minutes
@@ -55,6 +73,7 @@ RESUME_BUILD=false
 SHOW_HELP=false
 ENABLE_RESEARCH=true
 SKIP_MEM0_CHECK=false
+FALLBACK_API_KEY=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -82,6 +101,14 @@ while [[ $# -gt 0 ]]; do
             SKIP_MEM0_CHECK=true
             shift
             ;;
+        --api-key)
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}Error: --api-key requires an API key${NC}"
+                exit 1
+            fi
+            FALLBACK_API_KEY="$2"
+            shift 2
+            ;;
         -h|--help)
             SHOW_HELP=true
             shift
@@ -103,6 +130,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  -r, --resume            Resume from last checkpoint"
     echo "  --no-research           Disable research phase"
     echo "  --skip-mem0-check       Skip initial mem0 memory check"
+    echo "  --api-key KEY           Fallback API key when max plan limits are reached"
     echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
@@ -134,8 +162,17 @@ show_banner() {
 ║  • Git version control throughout build process                           ║
 ║  • Persistent memory across all phases                                    ║
 ║                                                                           ║
-╚═══════════════════════════════════════════════════════════════════════════╝
 EOF
+    echo -e "║  Model: ${BOLD}$MODEL${CYAN}                           ║"
+    if [ "$API_KEY_MODE" = true ]; then
+        echo -e "║  Mode: ${YELLOW}API Key${CYAN} (\$3/\$15 per 1M tokens)                               ║"
+    elif [ -n "$FALLBACK_API_KEY" ]; then
+        echo -e "║  Mode: ${GREEN}Max Plan${CYAN} with ${YELLOW}API Key fallback${CYAN}                               ║"
+    else
+        echo -e "║  Mode: ${GREEN}Max Plan${CYAN} (no additional charges)                                ║"
+    fi
+    echo -e "║                                                                           ║"
+    echo -e "╚═══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}\n"
 }
 
@@ -178,6 +215,45 @@ log() {
             echo -e "${ORANGE}[COST]${NC} ${timestamp} 💰 $message"
             ;;
     esac
+}
+
+# Calculate cost from tokens
+calculate_cost() {
+    local input_tokens=$1
+    local output_tokens=$2
+    
+    # Calculate costs in dollars
+    local input_cost=$(echo "scale=6; $input_tokens * $INPUT_COST_PER_1M / 1000000" | bc -l 2>/dev/null || echo "0")
+    local output_cost=$(echo "scale=6; $output_tokens * $OUTPUT_COST_PER_1M / 1000000" | bc -l 2>/dev/null || echo "0")
+    local phase_cost=$(echo "scale=6; $input_cost + $output_cost" | bc -l 2>/dev/null || echo "0")
+    
+    # Update totals
+    TOTAL_INPUT_TOKENS=$((TOTAL_INPUT_TOKENS + input_tokens))
+    TOTAL_OUTPUT_TOKENS=$((TOTAL_OUTPUT_TOKENS + output_tokens))
+    TOTAL_COST=$(echo "scale=6; $TOTAL_COST + $phase_cost" | bc -l 2>/dev/null || echo "0")
+    
+    # Return phase cost
+    echo "$phase_cost"
+}
+
+# Display cost summary
+display_cost_summary() {
+    local phase_name="$1"
+    local input_tokens="$2"
+    local output_tokens="$3"
+    local phase_cost="$4"
+    
+    log "COST" "Phase: $phase_name"
+    log "COST" "  Input tokens: $(printf "%'d" $input_tokens)"
+    log "COST" "  Output tokens: $(printf "%'d" $output_tokens)"
+    log "COST" "  Phase cost: \$$(printf "%.4f" $phase_cost)"
+    log "COST" "  Total cost so far: \$$(printf "%.4f" $TOTAL_COST)"
+    
+    if [ "$API_KEY_MODE" = true ]; then
+        log "COST" "  Mode: API Key (charges apply)"
+    else
+        log "COST" "  Mode: Max Plan (no additional charges)"
+    fi
 }
 
 # Save build state for resumption
@@ -796,6 +872,8 @@ parse_enhanced_stream_output() {
     local update_interval=5  # Show progress every 5 seconds
     local char_count=0
     local line_count=0
+    local input_tokens=0
+    local output_tokens=0
     
     while IFS= read -r line; do
         # Skip empty lines
@@ -914,6 +992,15 @@ parse_enhanced_stream_output() {
                         echo -e "${RED}❌ [ERROR]${NC} $error_msg"
                     fi
                     ;;
+                    
+                "message_stop")
+                    # Extract token usage from final message
+                    local usage=$(echo "$line" | jq -r '.message.usage // empty' 2>/dev/null)
+                    if [ -n "$usage" ]; then
+                        input_tokens=$(echo "$usage" | jq -r '.input_tokens // 0' 2>/dev/null)
+                        output_tokens=$(echo "$usage" | jq -r '.output_tokens // 0' 2>/dev/null)
+                    fi
+                    ;;
             esac
         else
             # Fallback: show raw output if no jq
@@ -931,6 +1018,10 @@ parse_enhanced_stream_output() {
     
     # Final progress update
     echo -e "${DIM}   [Stream completed - Total: ${line_count} events, ${char_count} chars]${NC}" >&2
+    
+    # Return token counts via global variables
+    LAST_INPUT_TOKENS=$input_tokens
+    LAST_OUTPUT_TOKENS=$output_tokens
 }
 
 # Display tool parameters in a readable format
@@ -1122,7 +1213,17 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
     
     local phase_start=$(date +%s)
     
-    echo "$prompt" | claude \
+    # Set up environment for fallback API key if provided
+    local claude_env=""
+    if [ -n "$FALLBACK_API_KEY" ] && [ "$API_KEY_MODE" = false ]; then
+        claude_env="ANTHROPIC_API_KEY=$FALLBACK_API_KEY"
+        log "INFO" "Using fallback API key for this phase"
+    fi
+    
+    # Log model being used
+    log "INFO" "Using model: $MODEL"
+    
+    echo "$prompt" | env $claude_env claude \
         --model "$MODEL" \
         --mcp-config .mcp.json \
         --dangerously-skip-permissions \
@@ -1135,11 +1236,16 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
     local phase_end=$(date +%s)
     local phase_duration=$((phase_end - phase_start))
     
+    # Calculate and display costs
+    if [ $LAST_INPUT_TOKENS -gt 0 ] || [ $LAST_OUTPUT_TOKENS -gt 0 ]; then
+        local phase_cost=$(calculate_cost $LAST_INPUT_TOKENS $LAST_OUTPUT_TOKENS)
+        display_cost_summary "$phase_name" $LAST_INPUT_TOKENS $LAST_OUTPUT_TOKENS "$phase_cost"
+    fi
+    
     if [ $exit_code -eq 0 ]; then
         log "SUCCESS" "Phase $phase_num completed in $phase_duration seconds"
         
-        # Track cost information
-        track_cost_information $phase_num "phase-$phase_num-output.log"
+        # Cost already tracked and displayed above
         
         # Save memory state
         local memory_data=$(jq -n \
@@ -1474,6 +1580,16 @@ main() {
     echo -e "${CYAN}║${NC} 🔍 Research Features: ${GREEN}ENABLED${NC}                         ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC} 📝 Git Integration: ${GREEN}COMPLETE${NC}                          ${CYAN}║${NC}"
     echo -e "${CYAN}║${NC} 💾 Output: $OUTPUT_DIR/claude-code-builder             ${CYAN}║${NC}"
+    echo -e "${CYAN}╠═══════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC} 💰 ${BOLD}COST SUMMARY${NC}                                      ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} Input tokens: $(printf "%'d" $TOTAL_INPUT_TOKENS)                            ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} Output tokens: $(printf "%'d" $TOTAL_OUTPUT_TOKENS)                           ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC} Total cost: ${YELLOW}\$$(printf "%.4f" $TOTAL_COST)${NC}                            ${CYAN}║${NC}"
+    if [ "$API_KEY_MODE" = true ]; then
+        echo -e "${CYAN}║${NC} Mode: ${YELLOW}API Key (charged)${NC}                               ${CYAN}║${NC}"
+    else
+        echo -e "${CYAN}║${NC} Mode: ${GREEN}Max Plan (no charge)${NC}                            ${CYAN}║${NC}"
+    fi
     echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}\n"
     
     log "INFO" "Next steps:"
