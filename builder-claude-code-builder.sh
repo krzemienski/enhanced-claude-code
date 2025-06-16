@@ -734,13 +734,10 @@ Provide a comprehensive list of all available capabilities."
     # Run discovery with Claude
     log "INFO" "Running MCP capability discovery..."
     
-    claude \
-        --model "$MODEL_OPUS_4" \
-        --mcp-config .mcp.json \
-        --dangerously-skip-permissions \
-        --max-turns 5 \
-        --output-format stream-json \
-        < .mcp-discovery-prompt.txt \
+    local discovery_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 5 --output-format stream-json"
+    log "INFO" "🔧 Discovery command: $discovery_cmd < .mcp-discovery-prompt.txt"
+    
+    $discovery_cmd < .mcp-discovery-prompt.txt \
         2>&1 | tee mcp-discovery.log | parse_mcp_discovery
     
     rm -f .mcp-discovery-prompt.txt
@@ -1023,11 +1020,13 @@ Now create the optimal build plan with full memory and research integration."
     log "INFO" "Using model: $MODEL_OPUS_4"
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
+    # Log the planning command
+    local planning_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 50 --output-format stream-json --verbose"
+    log "INFO" "🔧 Planning command: $planning_cmd"
+    echo -e "${DIM}   Input: Planning prompt with ${#full_prompt} characters${NC}" >&2
+    
     # Always use Opus 4 for planning to determine complexity
-    echo "$full_prompt" | claude \
-        --model "$MODEL_OPUS_4" \
-        --mcp-config .mcp.json \
-        --dangerously-skip-permissions \
+    echo "$full_prompt" | $planning_cmd \
         --max-turns 50 \
         --output-format stream-json \
         --verbose \
@@ -1280,10 +1279,13 @@ Output a summary of all findings that will inform the build process."
     # Research is always complex, use Opus 4
     log "INFO" "Using model: $MODEL_OPUS_4 (Research requires Opus 4)"
     
-    echo "$research_prompt" | timeout --foreground $RESEARCH_TIMEOUT claude \
-        --model "$MODEL_OPUS_4" \
-        --mcp-config .mcp.json \
-        --dangerously-skip-permissions \
+    # Log the research command
+    local research_cmd="claude --model $MODEL_OPUS_4 --mcp-config .mcp.json --dangerously-skip-permissions --max-turns 20 --output-format stream-json --verbose"
+    log "INFO" "🔧 Research command: timeout --foreground $RESEARCH_TIMEOUT $research_cmd"
+    echo -e "${DIM}   Input: Research prompt with ${#research_prompt} characters${NC}" >&2
+    echo -e "${DIM}   Timeout: $RESEARCH_TIMEOUT seconds${NC}" >&2
+    
+    echo "$research_prompt" | timeout --foreground $RESEARCH_TIMEOUT $research_cmd \
         --max-turns 20 \
         --output-format stream-json \
         --verbose \
@@ -1451,13 +1453,14 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
         log "INFO" "  Available MCP tools: $tool_count across $(jq -r '.servers | length' .mcp-capabilities.json) servers"
     fi
     
-    echo "$prompt" | env $claude_env claude \
-        --model "$phase_model" \
-        --mcp-config .mcp.json \
-        --dangerously-skip-permissions \
-        --max-turns "$MAX_TURNS" \
-        --output-format stream-json \
-        --verbose \
+    # Log the exact Claude command being executed
+    log "INFO" "🔧 Executing Claude command:"
+    local claude_cmd="claude --model $phase_model --mcp-config .mcp.json --dangerously-skip-permissions --max-turns $MAX_TURNS --output-format stream-json --verbose"
+    echo -e "${DIM}   Command: $claude_cmd${NC}" >&2
+    echo -e "${DIM}   Input: <prompt of ${#prompt} characters>${NC}" >&2
+    echo -e "${DIM}   Log file: phase-$phase_num-output.log${NC}" >&2
+    
+    echo "$prompt" | env $claude_env $claude_cmd \
         2>&1 | tee -a "phase-$phase_num-output.log" | parse_enhanced_stream_output
     
     local exit_code=${PIPESTATUS[0]}
