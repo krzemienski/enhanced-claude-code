@@ -1,0 +1,25 @@
+Claude Code Builder v2.3.0
+Specification: ../test-spec.md
+Output directory: .
+Claude Code Builder v2.3.0
+📄 Specification: test-spec.md
+📁 Output directory: .
+
+✓ Loaded specification: Simple Task Tracker API
+                 Build Configuration                  
+╭───────────────────────────┬────────────────────────╮
+│ Setting                   │ Value                  │
+├───────────────────────────┼────────────────────────┤
+│ Model (Analyzer)          │ claude-opus-4-20250514 │
+│ Model (Executor)          │ claude-opus-4-20250514 │
+│ Max Turns                 │ 30                     │
+│ Max Retries               │ 3                      │
+│ Research Enabled          │ ✗                      │
+│ MCP Discovery             │ ✗                      │
+│ Validation                │ ✓                      │
+│ Run Tests                 │ ✗                      │
+│ Export Reports            │ ✗                      │
+╰───────────────────────────┴────────────────────────╯
+
+⚠️  Found existing checkpoint
+Resume from checkpoint? [Y/n]: 

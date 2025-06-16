@@ -1,0 +1,14 @@
+2025-06-15 07:20:13,755 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:14,230 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:15,415 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:28,852 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:29,759 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:32,009 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:20:45,403 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-06-15 07:21:53,849 - claude_code_builder.main - ERROR - Build failed: 'str' object has no attribute 'get'
+Traceback (most recent call last):
+  File "/Users/nick/Desktop/ccb-mem0/claude-code-builder/claude_code_builder/main.py", line 176, in run
+    await self._execute_phases(self.phases)
+  File "/Users/nick/Desktop/ccb-mem0/claude-code-builder/claude_code_builder/main.py", line 463, in _execute_phases
+    raise Exception(phase.error)
+Exception: 'str' object has no attribute 'get'
