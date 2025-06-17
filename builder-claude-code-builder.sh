@@ -332,15 +332,20 @@ display_cost_summary() {
 # Save build state for resumption
 save_build_state() {
     local phase_num=$1
-    local status=$2
+    local build_status=$2
     local cost_data=${3:-"{}"}
+    
+    # Ensure cost_data is properly quoted if it's a string
+    if [[ ! "$cost_data" =~ ^[\{\[] ]]; then
+        cost_data="\"$cost_data\""
+    fi
     
     cat > "$STATE_FILE" << EOF
 {
     "version": "$VERSION",
     "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
     "current_phase": $phase_num,
-    "status": "$status",
+    "status": "$build_status",
     "output_dir": "$OUTPUT_DIR",
     "phases_completed": $((phase_num - 1)),
     "memory_file": "$MEMORY_FILE",
@@ -387,9 +392,20 @@ track_cost_information() {
 # Load build state
 load_build_state() {
     if [ -f "$STATE_FILE" ]; then
-        CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE")
-        CURRENT_STATUS=$(jq -r '.status // "unknown"' "$STATE_FILE")
-        local saved_output_dir=$(jq -r '.output_dir // "."' "$STATE_FILE")
+        # Validate JSON before parsing
+        if ! jq empty "$STATE_FILE" 2>/dev/null; then
+            log "ERROR" "State file exists but contains invalid JSON"
+            return 1
+        fi
+        
+        CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null)
+        CURRENT_STATUS=$(jq -r '.status // "unknown"' "$STATE_FILE" 2>/dev/null)
+        local saved_output_dir=$(jq -r '.output_dir // "."' "$STATE_FILE" 2>/dev/null)
+        
+        # Ensure values are not empty
+        CURRENT_PHASE=${CURRENT_PHASE:-1}
+        CURRENT_STATUS=${CURRENT_STATUS:-"unknown"}
+        saved_output_dir=${saved_output_dir:-"."}
         
         # Check if output directory was specified in command line
         if [ "$RESUME_BUILD" = true ] && [ "$OUTPUT_DIR" != "." ]; then
