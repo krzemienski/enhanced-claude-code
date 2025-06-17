@@ -1501,8 +1501,7 @@ execute_enhanced_dynamic_phase() {
         log "MEMORY" "Loaded context from $(($phase_num - 1)) previous phases"
     fi
     
-    # Generate tool whitelist for this phase
-    generate_tool_whitelist
+    # Tool whitelist is handled by MCP capabilities file
     
     # Load available tools
     local available_tools=""
@@ -1647,8 +1646,9 @@ Remember: This is v3.0 Enhanced - demonstrate learning from memory and research!
     local phase_duration=$((phase_end - phase_start))
     
     # Calculate and display costs
+    local phase_cost="0.0000"
     if [ $LAST_INPUT_TOKENS -gt 0 ] || [ $LAST_OUTPUT_TOKENS -gt 0 ]; then
-        local phase_cost=$(calculate_cost $LAST_INPUT_TOKENS $LAST_OUTPUT_TOKENS)
+        phase_cost=$(calculate_cost $LAST_INPUT_TOKENS $LAST_OUTPUT_TOKENS)
         display_cost_summary "$phase_name" $LAST_INPUT_TOKENS $LAST_OUTPUT_TOKENS "$phase_cost"
     fi
     
