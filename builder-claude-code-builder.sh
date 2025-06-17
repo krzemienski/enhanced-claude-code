@@ -1715,7 +1715,8 @@ Cost: $phase_cost. Key outputs and patterns learned during this phase can inform
 execute_enhanced_functional_testing() {
     log "PHASE" "Final Phase: Comprehensive Functional Testing with Memory Integration"
     
-    local test_prompt="# Enhanced Functional Testing for Claude Code Builder v3.0
+    local test_prompt=$(cat << 'EOF'
+# Enhanced Functional Testing for Claude Code Builder v3.0
 
 Execute comprehensive testing that demonstrates memory and research integration.
 
@@ -1745,22 +1746,22 @@ Execute comprehensive testing that demonstrates memory and research integration.
 ## Test Execution
 
 ### Stage 1: Installation and Setup
-\`\`\`bash
+```bash
 cd claude-code-builder
 pip install -e .
 claude-code-builder --version
-\`\`\`
+```
 
 ### Stage 2: Memory Integration Test
-\`\`\`bash
+```bash
 # Test that the builder can access mem0
 claude-code-builder --check-memory
-\`\`\`
+```
 
 ### Stage 3: Build Test with Research (NO DRY RUN - REAL BUILD ONLY)
-\`\`\`bash
+```bash
 # Create test spec that requires research
-cat > test-spec.md << 'EOF'
+cat > test-spec.md << 'TESTEOF'
 # Test API with FastAPI - PRODUCTION STANDARDS
 Build a REAL, FUNCTIONAL API using FastAPI with:
 - Health check endpoint with actual status checks
@@ -1773,29 +1774,16 @@ Build a REAL, FUNCTIONAL API using FastAPI with:
 - Docker support for deployment
 - Real API documentation (OpenAPI)
 - Production-ready middleware
-EOF
+TESTEOF
 
 # Run REAL build with full features (NO DRY RUN)
 # THIS WILL CREATE A REAL PROJECT AND TAKE 10-30 MINUTES
-claude-code-builder test-spec.md \\
-    --output-dir ./test-output \\
-    --enable-research \\
-    --verbose \\
-    --no-dry-run \\
-    2>&1 | tee test-execution.log &
-
-# Get process ID for monitoring (with proper error handling)
-BUILD_PID=$!
-
-# Check if background process started successfully
-if [ -z "${BUILD_PID:-}" ]; then
-    echo "ERROR: Failed to start build process"
-    exit 1
-fi
-
-# Monitor the REAL build process
-tail -f test-execution.log
-\`\`\`
+claude-code-builder test-spec.md \
+    --output-dir ./test-output \
+    --enable-research \
+    --verbose \
+    --no-dry-run
+```
 
 ### Stage 4: Verify Memory Usage
 Check the logs for:
@@ -1811,7 +1799,9 @@ Verify the built project:
 - Contains meaningful comments
 - Has comprehensive tests
 
-Document all findings and ensure the enhanced features work correctly."
+Document all findings and ensure the enhanced features work correctly.
+EOF
+)
     
     log "INFO" "Starting enhanced functional testing"
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
