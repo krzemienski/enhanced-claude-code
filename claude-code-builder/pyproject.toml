@@ -1,0 +1,204 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-code-builder"
+version = "3.0.0"
+description = "AI-Driven Autonomous Project Builder using Claude Code SDK"
+authors = [
+    {name = "Claude Code Builder Team", email = "team@claudecodebuilder.ai"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = [
+    "claude",
+    "ai",
+    "code-generation",
+    "project-builder",
+    "automation",
+    "development-tools"
+]
+
+dependencies = [
+    "anthropic>=0.31.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "aiohttp>=3.9.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
+    "jsonschema>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.2.0",
+    "psutil>=5.9.0",
+    "watchdog>=3.0.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+    "httpx>=0.25.0",
+    "anyio>=4.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-mock>=3.11.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-xdist>=3.3.0",
+    "coverage[toml]>=7.3.0",
+    "pre-commit>=3.3.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "sphinx-click>=5.0.0",
+    "myst-parser>=2.0.0",
+]
+
+research = [
+    "perplexity-client>=0.1.0",
+    "openai>=1.0.0",
+    "langchain>=0.1.0",
+    "chromadb>=0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/claude-code-builder/claude-code-builder"
+Documentation = "https://claude-code-builder.readthedocs.io"
+Repository = "https://github.com/claude-code-builder/claude-code-builder"
+Issues = "https://github.com/claude-code-builder/claude-code-builder/issues"
+
+[project.scripts]
+claude-code-builder = "claude_code_builder.cli:main"
+ccb = "claude_code_builder.cli:main"
+
+[tool.setuptools]
+packages = ["claude_code_builder"]
+
+[tool.setuptools.package-data]
+claude_code_builder = [
+    "templates/**/*",
+    "schemas/**/*",
+    "examples/**/*",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=claude_code_builder",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "functional: marks tests as functional tests",
+]
+
+[tool.coverage.run]
+source = ["claude_code_builder"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@abstractmethod",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+target-version = "py38"
+line-length = 88
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+line_length = 88
