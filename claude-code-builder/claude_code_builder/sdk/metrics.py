@@ -9,7 +9,7 @@ from collections import defaultdict, deque
 import statistics
 
 from ..models.base import BaseModel
-from ..models.cost import CostEstimate, CostCategory
+from ..models.cost import CostEntry, CostCategory
 
 logger = logging.getLogger(__name__)
 

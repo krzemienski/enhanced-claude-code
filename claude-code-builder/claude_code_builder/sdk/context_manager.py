@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import hashlib
 
 from ..models.base import BaseModel
-from ..models.memory import MemoryEntry, MemoryStore
+from ..models.memory import ContextEntry, MemoryStore
 from ..exceptions.base import SDKError
 
 logger = logging.getLogger(__name__)

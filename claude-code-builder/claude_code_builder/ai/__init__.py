@@ -5,8 +5,8 @@ from .analyzer import SpecificationAnalyzer
 from .phase_generator import PhaseGenerator
 from .task_generator import TaskGenerator
 from .dependency_resolver import DependencyResolver
-from .complexity_estimator import ComplexityEstimator, ComplexityLevel
-from .risk_assessor import RiskAssessor, RiskLevel, RiskType
+from .complexity_estimator import ComplexityEstimator
+from .risk_assessor import RiskAssessor
 from .optimization import PlanOptimizer, OptimizationStrategy, OptimizationConstraints
 
 __all__ = [
@@ -23,9 +23,6 @@ __all__ = [
     "PlanOptimizer",
     
     # Enums and supporting classes
-    "ComplexityLevel",
-    "RiskLevel",
-    "RiskType",
     "OptimizationStrategy",
     "OptimizationConstraints",
 ]

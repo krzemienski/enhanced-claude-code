@@ -40,9 +40,10 @@ class ValidationType(Enum):
 class ValidationIssue(SerializableModel, TimestampedModel):
     """Individual validation issue."""
     
-    level: ValidationLevel
-    validation_type: ValidationType
-    message: str
+    # All fields must have defaults due to TimestampedModel inheritance
+    message: str = ""
+    level: ValidationLevel = ValidationLevel.INFO
+    validation_type: ValidationType = ValidationType.SYNTAX
     
     # Location information
     file_path: Optional[Path] = None
@@ -207,7 +208,8 @@ class ValidationRule:
 class ValidationResult(SerializableModel, TimestampedModel):
     """Complete validation result."""
     
-    target: str
+    # All fields must have defaults due to TimestampedModel inheritance
+    target: str = ""
     success: bool = True
     issues: List[ValidationIssue] = field(default_factory=list)
     

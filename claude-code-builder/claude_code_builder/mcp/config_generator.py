@@ -9,7 +9,7 @@ import os
 
 from ..models.base import BaseModel
 from ..models.project import ProjectSpec
-from ..exceptions.base import ClaudeCodeBuilderError, ConfigurationError
+from ..exceptions.base import ClaudeCodeBuilderError, ValidationError
 from .discovery import MCPServer
 from .recommender import ServerRecommendation
 from .registry import MCPRegistry

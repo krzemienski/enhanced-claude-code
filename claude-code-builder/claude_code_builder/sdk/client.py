@@ -10,9 +10,9 @@ import subprocess
 import os
 
 from ..models.base import BaseModel
-from ..models.cost import CostEstimate, CostCategory
+from ..models.cost import CostEntry, CostCategory
 from ..exceptions.base import ClaudeCodeBuilderError, SDKError
-from ..config.settings import SDKConfig
+from ..config.settings import AIConfig
 from .session import SessionManager, Session
 from .parser import ResponseParser
 from .metrics import SDKMetrics
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ClaudeCodeClient:
     """Wrapper for Claude Code SDK operations."""
     
-    def __init__(self, config: SDKConfig):
+    def __init__(self, config: AIConfig = None):
         """
         Initialize Claude Code client.
         
@@ -219,7 +219,7 @@ class ClaudeCodeClient:
         session: Session,
         command: str,
         model: str = "claude-3-opus-20240229"
-    ) -> CostEstimate:
+    ) -> CostEntry:
         """
         Estimate cost for a command.
         
@@ -255,7 +255,7 @@ class ClaudeCodeClient:
         output_cost = (output_tokens / 1000) * costs["output"]
         total_cost = input_cost + output_cost
         
-        return CostEstimate(
+        return CostEntry(
             total_cost=total_cost,
             breakdown={
                 CostCategory.API: total_cost,

@@ -4,16 +4,17 @@ import logging
 import os
 import json
 import subprocess
-from typing import Dict, Any, List, Optional, Tuple, Set
+from typing import Dict, Any, List, Optional, Tuple, Set, Union
 from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 import ast
 import re
 
-from ..models.project import Project, BuildPhase, BuildTask
-from ..models.context import ExecutionContext, PhaseResult, TaskResult
-from ..models.validation import ValidationResult, ValidationError, ValidationWarning
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, Task, TaskStatus, TaskResult
+from ..models.validation import ValidationResult
+from ..exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,8 @@ class ValidationReport:
     project_id: str
     phase_id: Optional[str] = None
     task_id: Optional[str] = None
-    errors: List[ValidationError] = field(default_factory=list)
-    warnings: List[ValidationWarning] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
     passed_checks: List[str] = field(default_factory=list)
     failed_checks: List[str] = field(default_factory=list)
     metrics: Dict[str, Any] = field(default_factory=dict)
@@ -88,8 +89,8 @@ class ExecutionValidator:
     
     def validate_project(
         self,
-        project: Project,
-        context: ExecutionContext
+        project: ProjectSpec,
+        context: Dict[str, Any]
     ) -> ValidationReport:
         """Validate entire project."""
         logger.info(f"Validating project: {project.config.name}")
@@ -138,9 +139,9 @@ class ExecutionValidator:
     
     def validate_phase(
         self,
-        phase: BuildPhase,
-        phase_result: PhaseResult,
-        context: ExecutionContext
+        phase: Phase,
+        phase_result: TaskResult,
+        context: Dict[str, Any]
     ) -> ValidationReport:
         """Validate phase execution results."""
         logger.info(f"Validating phase: {phase.name}")
@@ -183,9 +184,9 @@ class ExecutionValidator:
     
     def validate_task(
         self,
-        task: BuildTask,
+        task: Task,
         task_result: TaskResult,
-        context: ExecutionContext
+        context: Dict[str, Any]
     ) -> ValidationReport:
         """Validate task execution results."""
         logger.info(f"Validating task: {task.name}")
@@ -271,8 +272,8 @@ class ExecutionValidator:
     
     def _validate_syntax(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate syntax of all code files."""
@@ -315,8 +316,8 @@ class ExecutionValidator:
     
     def _validate_imports(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate import statements."""
@@ -343,8 +344,8 @@ class ExecutionValidator:
     
     def _validate_structure(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate project structure."""
@@ -383,8 +384,8 @@ class ExecutionValidator:
     
     def _validate_dependencies(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate project dependencies."""
@@ -409,8 +410,8 @@ class ExecutionValidator:
     
     def _validate_tests(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate test coverage and execution."""
@@ -454,8 +455,8 @@ class ExecutionValidator:
     
     def _validate_documentation(
         self,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> bool:
         """Validate documentation completeness."""
@@ -496,8 +497,8 @@ class ExecutionValidator:
     
     def _validate_phase_artifacts(
         self,
-        phase: BuildPhase,
-        phase_result: PhaseResult,
+        phase: Phase,
+        phase_result: TaskResult,
         report: ValidationReport
     ) -> None:
         """Validate phase artifacts."""
@@ -521,7 +522,7 @@ class ExecutionValidator:
     
     def _validate_code_task(
         self,
-        task: BuildTask,
+        task: Task,
         task_result: TaskResult,
         report: ValidationReport
     ) -> None:
@@ -543,7 +544,7 @@ class ExecutionValidator:
     
     def _validate_file_task(
         self,
-        task: BuildTask,
+        task: Task,
         task_result: TaskResult,
         report: ValidationReport
     ) -> None:
@@ -564,7 +565,7 @@ class ExecutionValidator:
     
     def _validate_test_task(
         self,
-        task: BuildTask,
+        task: Task,
         task_result: TaskResult,
         report: ValidationReport
     ) -> None:
@@ -608,8 +609,8 @@ class ExecutionValidator:
     def _run_custom_validator(
         self,
         validator_name: str,
-        project: Project,
-        context: ExecutionContext,
+        project: ProjectSpec,
+        context: Dict[str, Any],
         report: ValidationReport
     ) -> None:
         """Run a custom validator."""
@@ -761,7 +762,7 @@ class ExecutionValidator:
     
     def _get_severity_distribution(
         self,
-        items: List[Union[ValidationError, ValidationWarning]]
+        items: List[str]
     ) -> Dict[str, int]:
         """Get distribution of items by severity."""
         distribution = {"high": 0, "medium": 0, "low": 0}

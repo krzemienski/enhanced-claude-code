@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 import hashlib
 
 from ..models.base import BaseModel
-from ..exceptions.base import ClaudeCodeBuilderError, ConfigurationError
+from ..exceptions.base import ClaudeCodeBuilderError, ValidationError
 from .discovery import MCPServer
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,7 @@ class MCPRegistry:
             
         except Exception as e:
             logger.error(f"Failed to save registry: {e}")
-            raise ConfigurationError(f"Could not save registry: {e}")
+            raise ValidationError(f"Could not save registry: {e}")
     
     def register_server(
         self,

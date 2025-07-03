@@ -10,8 +10,9 @@ from pathlib import Path
 import threading
 import time
 
-from ..models.testing import TestPlan, TestResult, TestMetrics, TestStatus, TestType
-from ..models.project import Project, BuildPhase
+from ..models.testing import TestPlan, TestResult, TestMetrics, TestStatus, TestStage
+from ..models.project import ProjectSpec
+from ..models.phase import Phase
 from ..execution.orchestrator import ExecutionOrchestrator
 from ..memory.store import PersistentMemoryStore, MemoryType, MemoryPriority
 
@@ -58,7 +59,7 @@ class TestContext:
     """Context information for test execution."""
     test_id: str
     execution_id: str
-    project: Optional[Project] = None
+    project: Optional[ProjectSpec] = None
     stage: Optional[TestStage] = None
     start_time: Optional[datetime] = None
     environment: Dict[str, Any] = field(default_factory=dict)
@@ -128,7 +129,7 @@ class TestingFramework:
     
     async def run_comprehensive_test(
         self,
-        project: Optional[Project] = None,
+        project: Optional[ProjectSpec] = None,
         execution_id: Optional[str] = None,
         stages: Optional[List[TestStage]] = None
     ) -> TestResult:
@@ -156,7 +157,7 @@ class TestingFramework:
             # Initialize test result
             test_result = TestResult(
                 test_id=test_id,
-                test_type=TestType.FUNCTIONAL,
+                test_type=TestStage.FUNCTIONAL,
                 status=TestStatus.RUNNING,
                 start_time=context.start_time,
                 project_id=project.config.id if project else None,
@@ -193,7 +194,7 @@ class TestingFramework:
             # Create failed result
             failed_result = TestResult(
                 test_id=test_id,
-                test_type=TestType.FUNCTIONAL,
+                test_type=TestStage.FUNCTIONAL,
                 status=TestStatus.FAILED,
                 start_time=context.start_time,
                 end_time=datetime.now(),

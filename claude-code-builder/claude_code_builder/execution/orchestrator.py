@@ -8,10 +8,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 import uuid
 
-from ..models.project import Project, BuildPhase, BuildStatus
-from ..models.context import ExecutionContext, PhaseResult
-from ..models.errors import BuildError
-from ..ai.planner import BuildPlanner
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, TaskStatus, TaskResult
+from ..exceptions import ValidationError
+from ..ai.planner import AIPlanner
 from ..sdk.client import ClaudeCodeClient
 from ..mcp.discovery import MCPDiscovery
 from ..research.coordinator import ResearchCoordinator
@@ -46,14 +46,14 @@ class OrchestrationConfig:
 class OrchestrationState:
     """Current state of orchestration."""
     execution_id: str
-    project: Project
+    project: ProjectSpec
     start_time: datetime
-    current_phase: Optional[BuildPhase] = None
+    current_phase: Optional[Phase] = None
     completed_phases: List[str] = field(default_factory=list)
     failed_phases: List[str] = field(default_factory=list)
-    phase_results: Dict[str, PhaseResult] = field(default_factory=dict)
-    context: Optional[ExecutionContext] = None
-    errors: List[BuildError] = field(default_factory=list)
+    phase_results: Dict[str, TaskResult] = field(default_factory=dict)
+    context: Optional[Dict[str, Any]] = None
+    errors: List[ValidationError] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -66,7 +66,7 @@ class ExecutionOrchestrator:
         self.state: Optional[OrchestrationState] = None
         
         # Component instances
-        self.planner = BuildPlanner()
+        self.planner = AIPlanner()
         self.claude_client = ClaudeCodeClient()
         self.mcp_discovery = MCPDiscovery()
         self.research_coordinator = ResearchCoordinator()
@@ -96,8 +96,8 @@ class ExecutionOrchestrator:
     
     async def execute_project(
         self,
-        project: Project,
-        context: Optional[ExecutionContext] = None,
+        project: ProjectSpec,
+        context: Optional[Dict[str, Any]] = None,
         resume_from: Optional[str] = None
     ) -> Dict[str, Any]:
         """Execute a complete project build."""
@@ -108,7 +108,7 @@ class ExecutionOrchestrator:
             execution_id=execution_id,
             project=project,
             start_time=datetime.now(),
-            context=context or ExecutionContext()
+            context=context or {}
         )
         
         logger.info(f"Starting project execution: {project.config.name}")
@@ -156,9 +156,9 @@ class ExecutionOrchestrator:
     
     async def execute_phase(
         self,
-        phase: BuildPhase,
-        context: ExecutionContext
-    ) -> PhaseResult:
+        phase: Phase,
+        context: Dict[str, Any]
+    ) -> TaskResult:
         """Execute a single build phase."""
         logger.info(f"Executing phase: {phase.name}")
         
@@ -175,7 +175,7 @@ class ExecutionOrchestrator:
                 
                 # Check dependencies
                 if not await self._check_dependencies(phase):
-                    raise BuildError(
+                    raise ValidationError(
                         f"Dependencies not met for phase: {phase.name}"
                     )
                 
@@ -188,9 +188,9 @@ class ExecutionOrchestrator:
                 )
                 
                 # Create phase result
-                phase_result = PhaseResult(
+                phase_result = TaskResult(
                     phase_id=phase.id,
-                    status=BuildStatus.COMPLETED,
+                    status=TaskStatus.COMPLETED,
                     start_time=phase_start,
                     end_time=datetime.now(),
                     outputs=task_results,
@@ -213,9 +213,9 @@ class ExecutionOrchestrator:
             logger.error(f"Phase execution failed: {phase.name} - {e}")
             
             # Create error result
-            phase_result = PhaseResult(
+            phase_result = TaskResult(
                 phase_id=phase.id,
-                status=BuildStatus.FAILED,
+                status=TaskStatus.FAILED,
                 start_time=phase_start,
                 end_time=datetime.now(),
                 error=str(e)
@@ -254,7 +254,7 @@ class ExecutionOrchestrator:
                 results[phase.id] = result
                 
                 # Check if we should continue
-                if result.status == BuildStatus.FAILED and not self.config.debug_mode:
+                if result.status == TaskStatus.FAILED and not self.config.debug_mode:
                     break
                     
             except Exception as e:
@@ -292,7 +292,7 @@ class ExecutionOrchestrator:
                     p for p in self.state.project.phases
                     if p.id not in executed
                 ]
-                raise BuildError(
+                raise ValidationError(
                     f"Cannot execute remaining phases: {[p.name for p in remaining]}"
                 )
             
@@ -381,8 +381,8 @@ class ExecutionOrchestrator:
     
     async def _execute_phase_tasks(
         self,
-        phase: BuildPhase,
-        context: ExecutionContext
+        phase: Phase,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute tasks within a phase."""
         task_results = {}
@@ -425,7 +425,7 @@ class ExecutionOrchestrator:
     async def _execute_single_task(
         self,
         task: Dict[str, Any],
-        context: ExecutionContext
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a single task."""
         async with self.task_semaphore:
@@ -439,7 +439,7 @@ class ExecutionOrchestrator:
                 "outputs": {}
             }
     
-    async def _check_dependencies(self, phase: BuildPhase) -> bool:
+    async def _check_dependencies(self, phase: Phase) -> bool:
         """Check if phase dependencies are satisfied."""
         for dep in phase.dependencies:
             if dep not in self.state.completed_phases:
@@ -448,7 +448,7 @@ class ExecutionOrchestrator:
     
     async def _validate_phase_results(
         self,
-        phase: BuildPhase,
+        phase: Phase,
         results: Dict[str, Any]
     ) -> bool:
         """Validate phase execution results."""
@@ -460,13 +460,13 @@ class ExecutionOrchestrator:
     
     async def _retry_phase(
         self,
-        phase: BuildPhase,
-        context: ExecutionContext,
+        phase: Phase,
+        context: Dict[str, Any],
         attempt: int = 1
-    ) -> PhaseResult:
+    ) -> TaskResult:
         """Retry phase execution."""
         if attempt > self.config.retry_attempts:
-            raise BuildError(
+            raise ValidationError(
                 f"Phase {phase.name} failed after {self.config.retry_attempts} attempts"
             )
         
@@ -492,7 +492,7 @@ class ExecutionOrchestrator:
     def _calculate_execution_levels(
         self,
         dependency_graph: Dict[str, List[str]]
-    ) -> Dict[int, List[BuildPhase]]:
+    ) -> Dict[int, List[Phase]]:
         """Calculate execution levels based on dependencies."""
         levels = {}
         assigned = set()

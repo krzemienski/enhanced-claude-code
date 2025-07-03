@@ -9,8 +9,8 @@ from enum import Enum
 import statistics
 import threading
 
-from ..models.project import Project, BuildPhase, BuildTask, BuildStatus
-from ..models.context import ExecutionContext
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class TaskProgress:
     """Progress information for a single task."""
     task_id: str
     task_name: str
-    status: BuildStatus
+    status: TaskStatus
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     progress_percent: float = 0.0
@@ -49,7 +49,7 @@ class PhaseProgress:
     """Progress information for a build phase."""
     phase_id: str
     phase_name: str
-    status: BuildStatus
+    status: TaskStatus
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     progress_percent: float = 0.0
@@ -67,7 +67,7 @@ class ProjectProgress:
     project_id: str
     project_name: str
     execution_id: str
-    status: BuildStatus
+    status: TaskStatus
     current_phase: ProgressPhase
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -120,9 +120,9 @@ class ProgressTracker:
     
     def start_project_tracking(
         self,
-        project: Project,
+        project: ProjectSpec,
         execution_id: str,
-        context: ExecutionContext
+        context: Dict[str, Any]
     ) -> ProjectProgress:
         """Start tracking progress for a project."""
         with self.lock:
@@ -130,7 +130,7 @@ class ProgressTracker:
                 project_id=project.config.id,
                 project_name=project.config.name,
                 execution_id=execution_id,
-                status=BuildStatus.RUNNING,
+                status=TaskStatus.RUNNING,
                 current_phase=ProgressPhase.INITIALIZING,
                 start_time=datetime.now(),
                 phases_total=len(project.phases),
@@ -142,7 +142,7 @@ class ProgressTracker:
                 phase_progress = PhaseProgress(
                     phase_id=phase.id,
                     phase_name=phase.name,
-                    status=BuildStatus.PENDING,
+                    status=TaskStatus.PENDING,
                     tasks_total=len(phase.tasks),
                     estimated_duration=self._estimate_phase_duration(phase)
                 )
@@ -152,7 +152,7 @@ class ProgressTracker:
                     task_progress = TaskProgress(
                         task_id=task.id,
                         task_name=task.name,
-                        status=BuildStatus.PENDING,
+                        status=TaskStatus.PENDING,
                         estimated_duration=self._estimate_task_duration(task)
                     )
                     phase_progress.task_progress[task.id] = task_progress
@@ -169,7 +169,7 @@ class ProgressTracker:
         self,
         execution_id: str,
         phase_id: str,
-        status: BuildStatus,
+        status: TaskStatus,
         progress_percent: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
@@ -196,9 +196,9 @@ class ProgressTracker:
             
             # Handle status transitions
             if old_status != status:
-                if status == BuildStatus.RUNNING and not phase_progress.start_time:
+                if status == TaskStatus.RUNNING and not phase_progress.start_time:
                     phase_progress.start_time = datetime.now()
-                elif status in [BuildStatus.COMPLETED, BuildStatus.FAILED, BuildStatus.CANCELLED]:
+                elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
                     phase_progress.end_time = datetime.now()
                     if phase_progress.start_time:
                         phase_progress.actual_duration = (
@@ -223,7 +223,7 @@ class ProgressTracker:
         execution_id: str,
         phase_id: str,
         task_id: str,
-        status: BuildStatus,
+        status: TaskStatus,
         progress_percent: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
@@ -256,9 +256,9 @@ class ProgressTracker:
             
             # Handle status transitions
             if old_status != status:
-                if status == BuildStatus.RUNNING and not task_progress.start_time:
+                if status == TaskStatus.RUNNING and not task_progress.start_time:
                     task_progress.start_time = datetime.now()
-                elif status in [BuildStatus.COMPLETED, BuildStatus.FAILED, BuildStatus.CANCELLED]:
+                elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
                     task_progress.end_time = datetime.now()
                     if task_progress.start_time:
                         task_progress.actual_duration = (
@@ -271,10 +271,10 @@ class ProgressTracker:
                 task_progress.progress_percent = min(100.0, max(0.0, progress_percent))
             
             # Update counters
-            if status == BuildStatus.COMPLETED:
-                if old_status != BuildStatus.COMPLETED:
+            if status == TaskStatus.COMPLETED:
+                if old_status != TaskStatus.COMPLETED:
                     phase_progress.tasks_completed += 1
-            elif old_status == BuildStatus.COMPLETED and status != BuildStatus.COMPLETED:
+            elif old_status == TaskStatus.COMPLETED and status != TaskStatus.COMPLETED:
                 phase_progress.tasks_completed = max(0, phase_progress.tasks_completed - 1)
             
             # Update phase and project progress
@@ -365,7 +365,7 @@ class ProgressTracker:
             if len(self.performance_samples) > self.eta_window_size * 2:
                 self.performance_samples = self.performance_samples[-self.eta_window_size:]
     
-    def _estimate_total_duration(self, project: Project) -> float:
+    def _estimate_total_duration(self, project: ProjectSpec) -> float:
         """Estimate total project duration."""
         total_estimate = 0.0
         
@@ -376,7 +376,7 @@ class ProgressTracker:
         # Add buffer for overhead
         return total_estimate * 1.2
     
-    def _estimate_phase_duration(self, phase: BuildPhase) -> float:
+    def _estimate_phase_duration(self, phase: Phase) -> float:
         """Estimate phase duration based on tasks."""
         # Get historical data if available
         historical_avg = self._get_historical_phase_duration(phase.id)
@@ -390,7 +390,7 @@ class ProgressTracker:
         
         return base_duration * complexity_multiplier * (1 + task_count * 0.5)
     
-    def _estimate_task_duration(self, task: BuildTask) -> float:
+    def _estimate_task_duration(self, task: Task) -> float:
         """Estimate task duration."""
         # Get historical data if available
         historical_avg = self._get_historical_task_duration(task.id)
@@ -414,7 +414,7 @@ class ProgressTracker:
     def _calculate_phase_progress(self, phase_progress: PhaseProgress) -> float:
         """Calculate phase progress based on task completion."""
         if phase_progress.tasks_total == 0:
-            return 100.0 if phase_progress.status == BuildStatus.COMPLETED else 0.0
+            return 100.0 if phase_progress.status == TaskStatus.COMPLETED else 0.0
         
         total_progress = sum(
             task.progress_percent for task in phase_progress.task_progress.values()
@@ -429,7 +429,7 @@ class ProgressTracker:
         # Update phases completed count
         project_progress.phases_completed = sum(
             1 for phase in project_progress.phase_progress.values()
-            if phase.status == BuildStatus.COMPLETED
+            if phase.status == TaskStatus.COMPLETED
         )
         
         # Calculate overall progress

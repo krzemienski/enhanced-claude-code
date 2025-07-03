@@ -39,9 +39,9 @@ class CostCategory(Enum):
 class CostEntry(SerializableModel, TimestampedModel):
     """Individual cost entry."""
     
-    category: CostCategory
-    amount: float
-    description: str
+    category: CostCategory = CostCategory.CLAUDE_CODE
+    amount: float = 0.0
+    description: str = ""
     phase: Optional[str] = None
     task: Optional[str] = None
     

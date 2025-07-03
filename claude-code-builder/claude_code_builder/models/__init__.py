@@ -90,6 +90,14 @@ from .monitoring import (
     MonitoringDashboard
 )
 
+from .custom_instructions import (
+    Priority,
+    InstructionContext,
+    ValidationResult,
+    InstructionRule,
+    InstructionSet
+)
+
 __all__ = [
     # Base models
     "BaseModel",
@@ -170,5 +178,12 @@ __all__ = [
     "Metric",
     "ProgressTracker",
     "Alert",
-    "MonitoringDashboard"
+    "MonitoringDashboard",
+    
+    # Custom instructions models
+    "Priority",
+    "InstructionContext",
+    "ValidationResult",
+    "InstructionRule",
+    "InstructionSet"
 ]

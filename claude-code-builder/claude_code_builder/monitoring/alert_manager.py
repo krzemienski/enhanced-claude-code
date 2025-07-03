@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 import smtplib
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from .performance_monitor import PerformanceAlert, MetricType
 from .cost_monitor import CostAlert
@@ -553,7 +553,7 @@ class AlertManager:
             return
         
         try:
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg["From"] = email_config["from_email"]
             msg["To"] = ", ".join(email_config["to_emails"])
             msg["Subject"] = f"Alert: {alert.rule_name} [{alert.severity.value.upper()}]"
@@ -569,7 +569,7 @@ Alert Details:
 Source Data: {json.dumps(alert.source_data, indent=2)}
             """
             
-            msg.attach(MimeText(body, "plain"))
+            msg.attach(MIMEText(body, "plain"))
             
             # Send email
             with smtplib.SMTP(email_config["smtp_host"], email_config["smtp_port"]) as server:

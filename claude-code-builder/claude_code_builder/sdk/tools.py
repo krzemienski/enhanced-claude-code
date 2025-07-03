@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 from ..models.base import BaseModel
-from ..exceptions.base import SDKError, ConfigurationError
+from ..exceptions.base import SDKError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class ToolManager:
             Registered tool
         """
         if name in self.tools:
-            raise ConfigurationError(f"Tool {name} already exists")
+            raise ValidationError(f"Tool {name} already exists")
         
         tool = Tool(
             name=name,
@@ -186,7 +186,7 @@ class ToolManager:
             configuration: Tool configuration
         """
         if name not in self.tools:
-            raise ConfigurationError(f"Tool {name} not found")
+            raise ValidationError(f"Tool {name} not found")
         
         self.tool_configs[name] = configuration
         self.tools[name].configuration.update(configuration)
@@ -196,7 +196,7 @@ class ToolManager:
     def enable_tool(self, name: str) -> None:
         """Enable a tool."""
         if name not in self.tools:
-            raise ConfigurationError(f"Tool {name} not found")
+            raise ValidationError(f"Tool {name} not found")
         
         self.tools[name].enabled = True
         self.disabled_tools.discard(name)
@@ -206,7 +206,7 @@ class ToolManager:
     def disable_tool(self, name: str) -> None:
         """Disable a tool."""
         if name not in self.tools:
-            raise ConfigurationError(f"Tool {name} not found")
+            raise ValidationError(f"Tool {name} not found")
         
         self.tools[name].enabled = False
         self.disabled_tools.add(name)
@@ -230,7 +230,7 @@ class ToolManager:
     def get_tool_configuration(self, name: str) -> Dict[str, Any]:
         """Get tool configuration."""
         if name not in self.tools:
-            raise ConfigurationError(f"Tool {name} not found")
+            raise ValidationError(f"Tool {name} not found")
         
         return self.tools[name].configuration
     
@@ -303,7 +303,7 @@ class ToolManager:
             MCP configuration
         """
         if tool.category != ToolCategory.MCP:
-            raise ConfigurationError(f"Tool {tool.name} is not an MCP tool")
+            raise ValidationError(f"Tool {tool.name} is not an MCP tool")
         
         config = {
             "command": tool.configuration.get("command", tool.name),

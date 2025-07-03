@@ -8,8 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from ..models.project import BuildPhase, BuildTask, BuildStatus
-from ..models.context import ExecutionContext, PhaseResult, TaskResult
+from ..models.phase import Phase, Task, TaskStatus, TaskResult
 from ..sdk.client import ClaudeCodeClient
 from ..mcp.registry import MCPRegistry
 from ..research.coordinator import ResearchCoordinator
@@ -43,8 +42,8 @@ class PhaseExecutionConfig:
 @dataclass
 class PhaseExecutionState:
     """State tracking for phase execution."""
-    phase: BuildPhase
-    context: ExecutionContext
+    phase: Phase
+    context: Dict[str, Any]
     start_time: datetime
     completed_tasks: Set[str] = field(default_factory=set)
     failed_tasks: Set[str] = field(default_factory=set)
@@ -81,9 +80,9 @@ class PhaseExecutor:
     
     async def execute_phase(
         self,
-        phase: BuildPhase,
-        context: ExecutionContext
-    ) -> PhaseResult:
+        phase: Phase,
+        context: Dict[str, Any]
+    ) -> TaskResult:
         """Execute a complete build phase."""
         logger.info(f"Starting phase execution: {phase.name}")
         
@@ -122,9 +121,9 @@ class PhaseExecutor:
             logger.error(f"Phase execution failed: {phase.name} - {e}")
             
             # Create error result
-            return PhaseResult(
+            return TaskResult(
                 phase_id=phase.id,
-                status=BuildStatus.FAILED,
+                status=TaskStatus.FAILED,
                 start_time=self.current_state.start_time,
                 end_time=datetime.now(),
                 error=str(e),
@@ -133,8 +132,8 @@ class PhaseExecutor:
     
     async def execute_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> TaskResult:
         """Execute a single task."""
         logger.info(f"Executing task: {task.name}")
@@ -171,7 +170,7 @@ class PhaseExecutor:
             # Create task result
             task_result = TaskResult(
                 task_id=task.id,
-                status=BuildStatus.COMPLETED,
+                status=TaskStatus.COMPLETED,
                 start_time=task_start,
                 end_time=datetime.now(),
                 outputs=result.get("outputs", {}),
@@ -191,7 +190,7 @@ class PhaseExecutor:
             # Create error result
             task_result = TaskResult(
                 task_id=task.id,
-                status=BuildStatus.FAILED,
+                status=TaskStatus.FAILED,
                 start_time=task_start,
                 end_time=datetime.now(),
                 error=str(e)
@@ -260,7 +259,7 @@ class PhaseExecutor:
             results[task.id] = result
             
             # Check if we should continue
-            if result.status == BuildStatus.FAILED and not self.config.continue_on_error:
+            if result.status == TaskStatus.FAILED and not self.config.continue_on_error:
                 break
             
             # Checkpoint if needed
@@ -287,7 +286,7 @@ class PhaseExecutor:
                 # Create error result
                 task_results[task.id] = TaskResult(
                     task_id=task.id,
-                    status=BuildStatus.FAILED,
+                    status=TaskStatus.FAILED,
                     start_time=datetime.now(),
                     end_time=datetime.now(),
                     error=str(result)
@@ -385,8 +384,8 @@ class PhaseExecutor:
     
     async def _execute_code_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a code generation task."""
         # Prepare prompt
@@ -416,8 +415,8 @@ class PhaseExecutor:
     
     async def _execute_research_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a research task."""
         # Determine research type
@@ -447,8 +446,8 @@ class PhaseExecutor:
     
     async def _execute_mcp_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute an MCP-related task."""
         mcp_action = task.metadata.get("mcp_action", "discover")
@@ -482,8 +481,8 @@ class PhaseExecutor:
     
     async def _execute_validation_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a validation task."""
         validation_type = task.metadata.get("validation_type", "general")
@@ -516,8 +515,8 @@ class PhaseExecutor:
     
     async def _execute_generic_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a generic task."""
         # Default implementation
@@ -537,8 +536,8 @@ class PhaseExecutor:
     
     async def _run_custom_handler(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Run a custom task handler."""
         handler = self.task_handlers[task.type]
@@ -560,8 +559,8 @@ class PhaseExecutor:
     
     async def _retry_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext,
+        task: Task,
+        context: Dict[str, Any],
         attempt: int = 1
     ) -> TaskResult:
         """Retry a failed task."""
@@ -641,7 +640,7 @@ class PhaseExecutor:
     async def _finalize_phase(
         self,
         task_results: Dict[str, TaskResult]
-    ) -> PhaseResult:
+    ) -> TaskResult:
         """Finalize phase execution and create result."""
         end_time = datetime.now()
         duration = (end_time - self.current_state.start_time).total_seconds()
@@ -649,11 +648,11 @@ class PhaseExecutor:
         # Determine phase status
         failed_count = len(self.current_state.failed_tasks)
         if failed_count == 0:
-            status = BuildStatus.COMPLETED
+            status = TaskStatus.COMPLETED
         elif failed_count == len(self.current_state.phase.tasks):
-            status = BuildStatus.FAILED
+            status = TaskStatus.FAILED
         else:
-            status = BuildStatus.PARTIAL
+            status = TaskStatus.PARTIAL
         
         # Aggregate metrics
         total_metrics = {
@@ -664,7 +663,7 @@ class PhaseExecutor:
         }
         
         # Create phase result
-        return PhaseResult(
+        return TaskResult(
             phase_id=self.current_state.phase.id,
             status=status,
             start_time=self.current_state.start_time,
@@ -676,8 +675,8 @@ class PhaseExecutor:
     
     def _prepare_code_prompt(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> str:
         """Prepare prompt for code generation task."""
         # Build comprehensive prompt

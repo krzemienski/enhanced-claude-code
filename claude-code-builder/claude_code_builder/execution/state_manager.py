@@ -11,8 +11,8 @@ from enum import Enum
 import threading
 import pickle
 
-from ..models.project import BuildStatus
-from ..models.context import ExecutionContext
+from ..models.phase import TaskStatus
+# Context is now Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
@@ -432,7 +432,7 @@ class StateManager:
     def update_execution_status(
         self,
         execution_id: str,
-        status: BuildStatus,
+        status: TaskStatus,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """Update execution status."""

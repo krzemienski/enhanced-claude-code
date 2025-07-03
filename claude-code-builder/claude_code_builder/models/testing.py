@@ -174,9 +174,10 @@ class TestMetrics:
 class TestCase(SerializableModel, TimestampedModel, IdentifiedModel):
     """Individual test case."""
     
-    name: str
-    description: str
-    stage: TestStage
+    # All fields must have defaults due to IdentifiedModel inheritance
+    name: str = ""
+    description: str = ""
+    stage: TestStage = TestStage.INSTALLATION
     
     # Test definition
     setup_steps: List[str] = field(default_factory=list)
@@ -277,8 +278,9 @@ class TestCase(SerializableModel, TimestampedModel, IdentifiedModel):
 class TestPlan(SerializableModel, TimestampedModel, IdentifiedModel):
     """Complete test plan for a project."""
     
-    name: str
-    description: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    name: str = ""
+    description: str = ""
     test_cases: List[TestCase] = field(default_factory=list)
     
     # Plan configuration
@@ -347,11 +349,11 @@ class TestPlan(SerializableModel, TimestampedModel, IdentifiedModel):
         self.test_cases.append(test_case)
         self._test_index[test_case.id] = test_case
     
-    def get_test_case(self, test_id: str) -> Optional[TestCase]:
+    def get_test_case(self, test_id: str = "") -> Optional[TestCase]:
         """Get test case by ID."""
         return self._test_index.get(test_id)
     
-    def get_tests_by_stage(self, stage: TestStage) -> List[TestCase]:
+    def get_tests_by_stage(self, stage: TestStage = TestStage.INSTALLATION) -> List[TestCase]:
         """Get all tests for a specific stage."""
         return [test for test in self.test_cases if test.stage == stage]
     
@@ -401,7 +403,8 @@ class TestPlan(SerializableModel, TimestampedModel, IdentifiedModel):
 class TestResult(SerializableModel, TimestampedModel):
     """Complete test execution result."""
     
-    test_plan: TestPlan
+    # All fields must have defaults due to TimestampedModel inheritance
+    test_plan: TestPlan = field(default_factory=lambda: TestPlan())
     success: bool = True
     
     # Execution summary

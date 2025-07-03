@@ -11,9 +11,8 @@ import subprocess
 import json
 import os
 
-from ..models.project import BuildTask, BuildStatus
-from ..models.context import ExecutionContext, TaskResult
-from ..models.errors import TaskExecutionError
+from ..models.phase import Task, TaskStatus, TaskResult
+from ..exceptions import ValidationError
 from ..sdk.session import SessionManager
 from ..sdk.tools import ToolManager
 
@@ -48,8 +47,8 @@ class TaskRunnerConfig:
 @dataclass
 class TaskExecutionContext:
     """Context for task execution."""
-    task: BuildTask
-    global_context: ExecutionContext
+    task: Task
+    global_context: Dict[str, Any]
     session_id: Optional[str] = None
     start_time: datetime = field(default_factory=datetime.now)
     attempts: int = 0
@@ -92,8 +91,8 @@ class TaskRunner:
     
     async def run_task(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> TaskResult:
         """Run a single task."""
         logger.info(f"Running task: {task.name} (type: {task.type})")
@@ -114,7 +113,7 @@ class TaskRunner:
             # Get handler
             handler = self.task_handlers.get(task_type)
             if not handler:
-                raise TaskExecutionError(
+                raise ValidationError(
                     f"No handler for task type: {task_type}"
                 )
             
@@ -128,14 +127,14 @@ class TaskRunner:
             await self._run_hooks(self.post_execution_hooks, exec_context)
             
             # Create task result
-            return self._create_task_result(exec_context, result, BuildStatus.COMPLETED)
+            return self._create_task_result(exec_context, result, TaskStatus.COMPLETED)
             
         except asyncio.TimeoutError:
             logger.error(f"Task timed out: {task.name}")
             return self._create_task_result(
                 exec_context,
                 {"error": "Task execution timed out"},
-                BuildStatus.FAILED
+                TaskStatus.FAILED
             )
             
         except Exception as e:
@@ -148,7 +147,7 @@ class TaskRunner:
             return self._create_task_result(
                 exec_context,
                 {"error": str(e)},
-                BuildStatus.FAILED
+                TaskStatus.FAILED
             )
     
     def register_custom_handler(
@@ -276,7 +275,7 @@ class TaskRunner:
         command = task.metadata.get("command")
         
         if not command:
-            raise TaskExecutionError("No command specified")
+            raise ValidationError("No command specified")
         
         # Prepare environment
         env = os.environ.copy()
@@ -349,7 +348,7 @@ class TaskRunner:
         body = task.metadata.get("body")
         
         if not endpoint:
-            raise TaskExecutionError("No API endpoint specified")
+            raise ValidationError("No API endpoint specified")
         
         # Make API call (using aiohttp)
         import aiohttp
@@ -529,10 +528,10 @@ class TaskRunner:
         handler_name = task.metadata.get("handler")
         
         if not handler_name:
-            raise TaskExecutionError("No custom handler specified")
+            raise ValidationError("No custom handler specified")
         
         if handler_name not in self.custom_handlers:
-            raise TaskExecutionError(
+            raise ValidationError(
                 f"Custom handler not found: {handler_name}"
             )
         
@@ -546,7 +545,7 @@ class TaskRunner:
     async def _retry_task(
         self,
         context: TaskExecutionContext,
-        global_context: ExecutionContext
+        global_context: Dict[str, Any]
     ) -> TaskResult:
         """Retry a failed task."""
         context.attempts += 1
@@ -565,7 +564,7 @@ class TaskRunner:
     
     async def _prepare_tools(
         self,
-        task: BuildTask
+        task: Task
     ) -> List[Dict[str, Any]]:
         """Prepare tools for task execution."""
         # Get required tools
@@ -583,8 +582,8 @@ class TaskRunner:
     
     def _prepare_prompt(
         self,
-        task: BuildTask,
-        context: ExecutionContext
+        task: Task,
+        context: Dict[str, Any]
     ) -> str:
         """Prepare prompt for code generation."""
         prompt_parts = [
@@ -620,7 +619,7 @@ class TaskRunner:
         
         return "\n".join(prompt_parts)
     
-    def _determine_task_type(self, task: BuildTask) -> TaskType:
+    def _determine_task_type(self, task: Task) -> TaskType:
         """Determine the task type from task metadata."""
         # Check explicit type
         if task.metadata.get("runner_type"):
@@ -650,7 +649,7 @@ class TaskRunner:
         self,
         context: TaskExecutionContext,
         outputs: Dict[str, Any],
-        status: BuildStatus
+        status: TaskStatus
     ) -> TaskResult:
         """Create a task result from execution context."""
         end_time = datetime.now()

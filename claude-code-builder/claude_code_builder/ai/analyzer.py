@@ -557,5 +557,4 @@ class SpecificationAnalyzer:
         }
 
 
-# Add to AnalysisResult class
-AnalysisResult.to_dict = to_dict
+# The to_dict method is already defined within the AnalysisResult class

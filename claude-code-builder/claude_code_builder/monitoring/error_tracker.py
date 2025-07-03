@@ -626,7 +626,7 @@ class ErrorTracker:
                 "message_patterns": ["data", "key", "index", "missing"]
             },
             ErrorCategory.CONFIGURATION: {
-                "exception_types": ["ConfigurationError"],
+                "exception_types": ["ValidationError"],
                 "message_patterns": ["config", "setting", "parameter", "option"]
             }
         }

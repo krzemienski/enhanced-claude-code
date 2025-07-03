@@ -465,7 +465,7 @@ class ErrorContextManager:
                 "message_patterns": ["import", "module", "package", "dependency"]
             },
             "configuration": {
-                "error_types": ["ConfigurationError"],
+                "error_types": ["ValidationError"],
                 "message_patterns": ["config", "setting", "parameter", "option"]
             },
             "resource": {

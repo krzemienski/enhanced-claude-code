@@ -1,6 +1,6 @@
 """Dependency resolver for AI planning."""
 
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set, Tuple, Optional, Any
 from dataclasses import dataclass
 from collections import defaultdict, deque
 

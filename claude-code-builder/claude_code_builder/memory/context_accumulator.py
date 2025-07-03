@@ -9,8 +9,9 @@ import json
 import threading
 
 from .store import PersistentMemoryStore, MemoryType, MemoryPriority
-from ..models.project import Project, BuildPhase, BuildTask
-from ..models.context import ExecutionContext, PhaseResult, TaskResult
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, Task, TaskResult
+from ..models.base import Result
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class ContextAccumulator:
         self,
         execution_id: str,
         project_id: str,
-        initial_project: Optional[Project] = None
+        initial_project: Optional[ProjectSpec] = None
     ) -> AccumulatedContext:
         """Create a new accumulated context."""
         with self.lock:
@@ -181,7 +182,7 @@ class ContextAccumulator:
     def add_project_context(
         self,
         context: AccumulatedContext,
-        project: Project
+        project: ProjectSpec
     ) -> None:
         """Add project-specific context."""
         # Project configuration
@@ -239,7 +240,7 @@ class ContextAccumulator:
     def add_execution_context(
         self,
         execution_id: str,
-        execution_context: ExecutionContext
+        execution_context: Dict[str, Any]
     ) -> None:
         """Add execution context information."""
         self.add_fragment(
@@ -260,8 +261,8 @@ class ContextAccumulator:
     def add_phase_result(
         self,
         execution_id: str,
-        phase: BuildPhase,
-        result: PhaseResult
+        phase: Phase,
+        result: TaskResult
     ) -> None:
         """Add phase execution result."""
         self.add_fragment(
@@ -286,7 +287,7 @@ class ContextAccumulator:
     def add_task_result(
         self,
         execution_id: str,
-        task: BuildTask,
+        task: Task,
         result: TaskResult
     ) -> None:
         """Add task execution result."""

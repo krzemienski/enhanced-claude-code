@@ -35,7 +35,7 @@ class Feature:
     """Project feature specification."""
     
     name: str
-    description: str
+    description: str = ""
     priority: str = "medium"
     complexity: int = 3
     dependencies: List[str] = field(default_factory=list)
@@ -61,7 +61,7 @@ class APIEndpoint:
     
     path: str
     method: str
-    description: str
+    description: str = ""
     parameters: List[Dict[str, Any]] = field(default_factory=list)
     request_body: Optional[Dict[str, Any]] = None
     responses: Dict[int, Dict[str, Any]] = field(default_factory=dict)
@@ -151,8 +151,9 @@ class PerformanceRequirements:
 class ProjectSpec(SerializableModel, TimestampedModel, IdentifiedModel, VersionedModel):
     """Complete project specification."""
     
-    metadata: ProjectMetadata
-    description: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    metadata: ProjectMetadata = field(default_factory=lambda: ProjectMetadata(name=""))
+    description: str = ""
     features: List[Feature] = field(default_factory=list)
     technologies: List[Technology] = field(default_factory=list)
     api_endpoints: List[APIEndpoint] = field(default_factory=list)
@@ -208,13 +209,13 @@ class ProjectSpec(SerializableModel, TimestampedModel, IdentifiedModel, Versione
                         f"Feature '{feature.name}' depends on unknown feature '{dep}'"
                     )
     
-    def get_technology(self, name: str) -> Optional[Technology]:
+    def get_technology(self, name: str = "") -> Optional[Technology]:
         """Get technology by name."""
         if self._technology_index is None:
             self._build_indices()
         return self._technology_index.get(name)
     
-    def get_feature(self, name: str) -> Optional[Feature]:
+    def get_feature(self, name: str = "") -> Optional[Feature]:
         """Get feature by name."""
         if self._feature_index is None:
             self._build_indices()

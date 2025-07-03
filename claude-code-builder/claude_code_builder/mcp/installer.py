@@ -12,7 +12,7 @@ from datetime import datetime
 import os
 
 from ..models.base import BaseModel
-from ..exceptions.base import ClaudeCodeBuilderError, ConfigurationError
+from ..exceptions.base import ClaudeCodeBuilderError, ValidationError
 from .discovery import MCPServer
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 """Technology Analyst research agent."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from datetime import datetime
 
 from .base_agent import BaseResearchAgent, AgentCapability, AgentContext, AgentResponse

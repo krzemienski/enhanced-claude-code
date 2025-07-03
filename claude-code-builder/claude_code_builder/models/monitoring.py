@@ -55,9 +55,10 @@ class AlertStatus(Enum):
 class LogEntry(SerializableModel, TimestampedModel):
     """Structured log entry."""
     
-    level: LogLevel
-    message: str
-    source: str
+    # All fields must have defaults due to TimestampedModel inheritance
+    level: LogLevel = LogLevel.INFO
+    message: str = ""
+    source: str = ""
     
     # Context
     phase: Optional[str] = None
@@ -125,7 +126,7 @@ class Metric:
     
     name: str
     metric_type: MetricType
-    value: float
+    value: float = 0.0
     unit: str = ""
     
     # Metadata

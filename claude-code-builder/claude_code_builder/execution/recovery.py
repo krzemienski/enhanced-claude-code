@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from ..models.project import Project, BuildPhase, BuildTask, BuildStatus
-from ..models.context import ExecutionContext, PhaseResult, TaskResult
-from ..models.errors import RecoveryError
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, Task, TaskStatus, TaskResult
+from ..exceptions import ValidationError
 from .checkpoint import CheckpointManager, CheckpointData
 
 logger = logging.getLogger(__name__)
@@ -93,10 +93,10 @@ class RecoveryManager:
     def analyze_failure(
         self,
         error: Exception,
-        project: Project,
-        execution_context: ExecutionContext,
-        phase: Optional[BuildPhase] = None,
-        task: Optional[BuildTask] = None
+        project: ProjectSpec,
+        execution_context: Dict[str, Any],
+        phase: Optional[Phase] = None,
+        task: Optional[Task] = None
     ) -> FailureContext:
         """Analyze a failure and determine its type and recoverability."""
         # Determine failure type
@@ -134,7 +134,7 @@ class RecoveryManager:
     def create_recovery_plan(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData] = None,
         strategy: Optional[RecoveryStrategy] = None
     ) -> RecoveryPlan:
@@ -169,8 +169,8 @@ class RecoveryManager:
     def execute_recovery(
         self,
         recovery_plan: RecoveryPlan,
-        project: Project,
-        execution_context: ExecutionContext
+        project: ProjectSpec,
+        execution_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a recovery plan."""
         logger.info(f"Executing recovery plan: {recovery_plan.strategy.value}")
@@ -250,7 +250,7 @@ class RecoveryManager:
     def get_recovery_suggestions(
         self,
         failure_context: FailureContext,
-        project: Project
+        project: ProjectSpec
     ) -> List[Dict[str, Any]]:
         """Get recovery suggestions for a failure."""
         suggestions = []
@@ -332,7 +332,7 @@ class RecoveryManager:
         non_recoverable_errors = [
             "PermissionError",
             "AuthenticationError",
-            "InvalidProjectError"
+            "InvalidProjectSpecError"
         ]
         
         if type(error).__name__ in non_recoverable_errors:
@@ -343,7 +343,7 @@ class RecoveryManager:
     def _select_recovery_strategy(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryStrategy:
         """Select the best recovery strategy."""
@@ -360,7 +360,7 @@ class RecoveryManager:
     def _recover_retry_failed(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create plan to retry failed tasks."""
@@ -382,7 +382,7 @@ class RecoveryManager:
     def _recover_skip_failed(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create plan to skip failed tasks."""
@@ -403,7 +403,7 @@ class RecoveryManager:
     def _recover_restart_phase(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create plan to restart the phase."""
@@ -427,7 +427,7 @@ class RecoveryManager:
     def _recover_restart_all(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create plan to restart entire execution."""
@@ -445,7 +445,7 @@ class RecoveryManager:
     def _recover_manual(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create plan for manual recovery."""
@@ -464,7 +464,7 @@ class RecoveryManager:
     def _recover_adaptive(
         self,
         failure_context: FailureContext,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: Optional[CheckpointData]
     ) -> RecoveryPlan:
         """Create adaptive recovery plan based on failure analysis."""
@@ -496,16 +496,16 @@ class RecoveryManager:
     
     def _restore_project_state(
         self,
-        project: Project,
+        project: ProjectSpec,
         checkpoint_data: CheckpointData
-    ) -> Project:
+    ) -> ProjectSpec:
         """Restore project state from checkpoint."""
         # Restore project fields from checkpoint
         project_state = checkpoint_data.project_state
         
         # Update project status and metadata
         if "status" in project_state:
-            project.status = BuildStatus(project_state["status"])
+            project.status = TaskStatus(project_state["status"])
         
         if "metadata" in project_state:
             project.metadata.update(project_state["metadata"])
@@ -514,9 +514,9 @@ class RecoveryManager:
     
     def _apply_modifications(
         self,
-        project: Project,
+        project: ProjectSpec,
         modifications: Dict[str, Any]
-    ) -> Project:
+    ) -> ProjectSpec:
         """Apply modifications to project configuration."""
         if "increase_timeout" in modifications:
             # Increase timeouts for all tasks
@@ -537,9 +537,9 @@ class RecoveryManager:
     
     def _prepare_recovery_context(
         self,
-        context: ExecutionContext,
+        context: Dict[str, Any],
         recovery_plan: RecoveryPlan
-    ) -> ExecutionContext:
+    ) -> Dict[str, Any]:
         """Prepare execution context for recovery."""
         # Add recovery information
         context.metadata["recovery"] = {
@@ -560,7 +560,7 @@ class RecoveryManager:
     
     def _find_next_task(
         self,
-        project: Project,
+        project: ProjectSpec,
         phase_id: str,
         task_id: str
     ) -> Optional[str]:

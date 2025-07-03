@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 import logging
 
 from ..models.base import BaseModel
-from ..models.memory import MemoryEntry
+from ..models.memory import ContextEntry
 from ..exceptions.base import SDKError
-from ..config.settings import SDKConfig
+from ..config.settings import AIConfig
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class Session:
 class SessionManager:
     """Manages Claude Code sessions lifecycle."""
     
-    def __init__(self, config: SDKConfig):
+    def __init__(self, config: AIConfig = None):
         """
         Initialize session manager.
         

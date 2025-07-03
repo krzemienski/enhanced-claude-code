@@ -1,7 +1,7 @@
 """Context-aware filter for custom instructions."""
 
 import logging
-from typing import Dict, Any, List, Optional, Set, Callable, Tuple
+from typing import Dict, Any, List, Optional, Set, Callable, Tuple, Union
 from datetime import datetime
 from collections import defaultdict
 import fnmatch

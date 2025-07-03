@@ -79,8 +79,9 @@ class TaskResult:
 class Task(SerializableModel, TimestampedModel, IdentifiedModel):
     """Individual task within a phase."""
     
-    name: str
-    description: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    name: str = ""
+    description: str = ""
     command: Optional[str] = None
     function: Optional[str] = None
     parameters: Dict[str, Any] = field(default_factory=dict)
@@ -198,9 +199,10 @@ class Dependency:
 class Phase(SerializableModel, TimestampedModel, IdentifiedModel):
     """Execution phase containing multiple tasks."""
     
-    name: str
-    description: str
-    objective: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    name: str = ""
+    objective: str = ""
+    description: str = ""
     tasks: List[Task] = field(default_factory=list)
     dependencies: List[Dependency] = field(default_factory=list)
     status: PhaseStatus = PhaseStatus.PENDING

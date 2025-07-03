@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from enum import Enum
 
 from ..models.phase import Phase, Task, PhaseStatus, TaskStatus
-from ..models.cost import CostEstimate, CostCategory
+from ..models.cost import CostEntry, CostCategory
 from ..models.base import BaseModel
 from ..exceptions.base import ClaudeCodeBuilderError
 from .dependency_resolver import DependencyResolver
 from .complexity_estimator import ComplexityEstimator
-from .risk_assessor import RiskAssessor, RiskLevel
+from .risk_assessor import RiskAssessor
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class OptimizationConstraints:
     max_cost: Optional[float] = None
     max_parallel_tasks: int = 5
     required_quality_score: float = 0.8
-    acceptable_risk_level: RiskLevel = RiskLevel.MEDIUM
+    acceptable_risk_level: str = "medium"
     preserve_dependencies: bool = True
     allow_phase_merging: bool = False
     allow_task_splitting: bool = True
@@ -475,7 +475,7 @@ class PlanOptimizer:
         
         if all(t.cost_estimate for t in tasks):
             total_cost = sum(t.cost_estimate.total_cost for t in tasks)
-            base_task.cost_estimate = CostEstimate(
+            base_task.cost_estimate = CostEntry(
                 total_cost=total_cost,
                 breakdown={
                     CostCategory.COMPUTE: total_cost * 0.7,

@@ -12,9 +12,6 @@ from ..exceptions.base import (
     ClaudeCodeBuilderError,
     SDKError,
     TimeoutError,
-    RateLimitError,
-    AuthenticationError,
-    ResourceNotFoundError,
     ValidationError
 )
 
@@ -74,9 +71,9 @@ class SDKErrorHandler:
     # Error to recovery strategy mapping
     ERROR_STRATEGIES = {
         TimeoutError: RecoveryStrategy.RETRY_WITH_BACKOFF,
-        RateLimitError: RecoveryStrategy.RETRY_WITH_BACKOFF,
-        AuthenticationError: RecoveryStrategy.ABORT,
-        ResourceNotFoundError: RecoveryStrategy.SKIP,
+        SDKError: RecoveryStrategy.RETRY_WITH_BACKOFF,
+        ValidationError: RecoveryStrategy.ABORT,
+        SDKError: RecoveryStrategy.SKIP,
         ValidationError: RecoveryStrategy.ABORT,
         ConnectionError: RecoveryStrategy.RETRY_WITH_BACKOFF,
         SDKError: RecoveryStrategy.FALLBACK
@@ -85,9 +82,9 @@ class SDKErrorHandler:
     # Error to severity mapping
     ERROR_SEVERITIES = {
         TimeoutError: ErrorSeverity.MEDIUM,
-        RateLimitError: ErrorSeverity.MEDIUM,
-        AuthenticationError: ErrorSeverity.CRITICAL,
-        ResourceNotFoundError: ErrorSeverity.LOW,
+        SDKError: ErrorSeverity.MEDIUM,
+        ValidationError: ErrorSeverity.CRITICAL,
+        SDKError: ErrorSeverity.LOW,
         ValidationError: ErrorSeverity.HIGH,
         ConnectionError: ErrorSeverity.HIGH,
         SDKError: ErrorSeverity.MEDIUM
@@ -433,7 +430,7 @@ class SDKErrorHandler:
     
     async def handle_rate_limit(
         self,
-        error: RateLimitError,
+        error: SDKError,
         retry_after: Optional[int] = None
     ) -> None:
         """

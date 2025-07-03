@@ -11,9 +11,9 @@ from dataclasses import dataclass, field, asdict
 import hashlib
 import shutil
 
-from ..models.project import Project, BuildPhase, BuildTask
-from ..models.context import ExecutionContext, PhaseResult, TaskResult
-from ..models.errors import CheckpointError
+from ..models.project import ProjectSpec
+from ..models.phase import Phase, Task, TaskResult
+from ..exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +71,12 @@ class CheckpointManager:
     
     def create_checkpoint(
         self,
-        project: Project,
+        project: ProjectSpec,
         execution_id: str,
         execution_state: Dict[str, Any],
-        phase_results: Optional[Dict[str, PhaseResult]] = None,
+        phase_results: Optional[Dict[str, TaskResult]] = None,
         task_results: Optional[Dict[str, TaskResult]] = None,
-        context: Optional[ExecutionContext] = None,
+        context: Optional[Dict[str, Any]] = None,
         description: str = "",
         tags: Optional[List[str]] = None
     ) -> CheckpointMetadata:
@@ -131,7 +131,7 @@ class CheckpointManager:
         checkpoint_path = self._get_checkpoint_path(checkpoint_id)
         
         if not checkpoint_path.exists():
-            raise CheckpointError(f"Checkpoint not found: {checkpoint_id}")
+            raise ValidationError(f"Checkpoint not found: {checkpoint_id}")
         
         checkpoint_data = self._load_checkpoint(checkpoint_path)
         
@@ -201,11 +201,11 @@ class CheckpointManager:
     
     def create_phase_checkpoint(
         self,
-        project: Project,
+        project: ProjectSpec,
         execution_id: str,
-        phase: BuildPhase,
-        phase_result: PhaseResult,
-        context: ExecutionContext
+        phase: Phase,
+        phase_result: TaskResult,
+        context: Dict[str, Any]
     ) -> CheckpointMetadata:
         """Create a checkpoint for a completed phase."""
         description = f"Phase completed: {phase.name}"
@@ -234,12 +234,12 @@ class CheckpointManager:
     
     def create_task_checkpoint(
         self,
-        project: Project,
+        project: ProjectSpec,
         execution_id: str,
-        phase: BuildPhase,
-        task: BuildTask,
+        phase: Phase,
+        task: Task,
         task_result: TaskResult,
-        context: ExecutionContext
+        context: Dict[str, Any]
     ) -> CheckpointMetadata:
         """Create a checkpoint for a completed task."""
         description = f"Task completed: {task.name}"
@@ -308,7 +308,7 @@ class CheckpointManager:
     ) -> CheckpointMetadata:
         """Import a checkpoint from a file."""
         if not import_path.exists():
-            raise CheckpointError(f"Import file not found: {import_path}")
+            raise ValidationError(f"Import file not found: {import_path}")
         
         # Load checkpoint data
         with gzip.open(import_path, 'rb') as f:
@@ -360,7 +360,7 @@ class CheckpointManager:
         with gzip.open(checkpoint_path, 'rb') as f:
             return pickle.load(f)
     
-    def _serialize_project(self, project: Project) -> Dict[str, Any]:
+    def _serialize_project(self, project: ProjectSpec) -> Dict[str, Any]:
         """Serialize project state."""
         return {
             "config": project.config.to_dict() if hasattr(project.config, 'to_dict') else {},
@@ -374,7 +374,7 @@ class CheckpointManager:
     
     def _serialize_phase_results(
         self,
-        phase_results: Dict[str, PhaseResult]
+        phase_results: Dict[str, TaskResult]
     ) -> Dict[str, Dict[str, Any]]:
         """Serialize phase results."""
         return {
@@ -394,14 +394,14 @@ class CheckpointManager:
     
     def _collect_artifacts(
         self,
-        project: Project,
-        phase_results: Dict[str, PhaseResult],
+        project: ProjectSpec,
+        phase_results: Dict[str, TaskResult],
         task_results: Dict[str, TaskResult]
     ) -> Dict[str, Any]:
         """Collect artifacts from results."""
         artifacts = {}
         
-        # Project artifacts
+        # ProjectSpec artifacts
         artifacts["project"] = project.metadata.get("artifacts", {})
         
         # Phase artifacts

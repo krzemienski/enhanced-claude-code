@@ -117,7 +117,8 @@ class ResearchFinding:
 class ResearchQuery(SerializableModel, TimestampedModel, IdentifiedModel):
     """Research query request."""
     
-    query: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    query: str = ""
     context: str = ""
     
     # Query parameters
@@ -202,7 +203,7 @@ class AgentResponse:
 class ResearchResult(SerializableModel, TimestampedModel):
     """Complete research result with synthesis."""
     
-    query: ResearchQuery
+    query: ResearchQuery = field(default_factory=lambda: ResearchQuery(query=""))
     status: ResearchStatus = ResearchStatus.PENDING
     
     # Agent responses

@@ -29,10 +29,11 @@ class MemoryType(Enum):
 class ContextEntry(SerializableModel, TimestampedModel, IdentifiedModel):
     """Context information stored in memory."""
     
-    entry_type: MemoryType
+    # All fields must have defaults due to IdentifiedModel inheritance
+    key: str = ""
+    entry_type: MemoryType = MemoryType.CONTEXT
     phase: Optional[str] = None
     task: Optional[str] = None
-    key: str = ""
     value: Any = None
     
     # Metadata
@@ -86,8 +87,9 @@ class ContextEntry(SerializableModel, TimestampedModel, IdentifiedModel):
 class ErrorLog(SerializableModel, TimestampedModel, IdentifiedModel):
     """Error information with context."""
     
-    error_type: str
-    error_message: str
+    # All fields must have defaults due to IdentifiedModel inheritance
+    error_type: str = ""
+    error_message: str = ""
     phase: Optional[str] = None
     task: Optional[str] = None
     
