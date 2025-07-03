@@ -1,0 +1,24 @@
+{
+    "mcpServers": {
+        "filesystem": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+            "description": "File system operations"
+        },
+        "memory": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-memory"],
+            "description": "State management across phases"
+        },
+        "sequential-thinking": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+            "description": "Complex planning and analysis"
+        },
+        "git": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-git"],
+            "description": "Version control"
+        }
+    }
+}
