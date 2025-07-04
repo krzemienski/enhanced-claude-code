@@ -379,3 +379,36 @@ class RichTerminal:
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 callback(data)
+    
+    def show_header(self, title: str) -> None:
+        """Show header with title.
+        
+        Args:
+            title: Header title
+        """
+        header_text = Text()
+        header_text.append("Claude Code Builder v3.0", style="bold blue")
+        header_text.append(" | ", style="dim")
+        header_text.append(title, style="bold white")
+        
+        self.console.print(Panel(header_text, border_style="blue"))
+    
+    def show_phases_table(self, phases: List[Any]) -> None:
+        """Show phases in a table.
+        
+        Args:
+            phases: List of phases
+        """
+        table = Table(title="Project Phases")
+        table.add_column("Phase", style="cyan")
+        table.add_column("Description")
+        table.add_column("Status")
+        
+        for i, phase in enumerate(phases, 1):
+            status = getattr(phase, 'status', 'pending')
+            description = getattr(phase, 'description', '')
+            name = getattr(phase, 'name', f'Phase {i}')
+            
+            table.add_row(name, description[:50] + "..." if len(description) > 50 else description, status)
+        
+        self.console.print(table)

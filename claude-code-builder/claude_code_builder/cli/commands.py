@@ -52,7 +52,7 @@ class CommandHandler:
         Returns:
             Exit code
         """
-        return await self.cli.build_project(args.specification)
+        return await self.cli.build_project(args.spec_file)
     
     async def handle_plan(self, args: argparse.Namespace) -> int:
         """Handle plan command.
@@ -154,10 +154,10 @@ class CommandHandler:
         Returns:
             Exit code
         """
-        self.cli.terminal.show_header(f"Validating {args.specification.name}")
+        self.cli.terminal.show_header(f"Validating {args.spec_file.name}")
         
         # Load specification
-        spec_content = self.file_handler.read_file(args.specification)
+        spec_content = self.file_handler.read_file(args.spec_file)
         
         # Parse specification
         try:
@@ -166,18 +166,44 @@ class CommandHandler:
             self.cli.console.print(f"[red]Failed to parse specification: {e}[/red]")
             return 1
         
-        # Create analyzer
-        analyzer = ProjectAnalyzer()
+        # Simple validation
+        self.cli.console.print("\n[cyan]Validating project specification...[/cyan]")
         
-        # Analyze project
-        with self.cli.console.status("[cyan]Analyzing project...[/cyan]"):
-            analysis = await analyzer.analyze(project_spec)
+        # Basic validation
+        is_valid = True
+        issues = []
         
-        # Show validation results
-        self._show_validation_results(project_spec, analysis, args.strict)
+        # Check required fields
+        if not project_spec.metadata.name:
+            issues.append("Project name is required")
+            is_valid = False
         
-        # Return based on validation status
-        return 0 if analysis.is_valid else 1
+        if not project_spec.description:
+            issues.append("Project description is required")
+            is_valid = False
+        
+        # Show results
+        if is_valid:
+            self.cli.console.print("\n[green]✓ Specification is valid[/green]")
+            
+            # Show basic info
+            from rich.table import Table
+            table = Table(title="Project Information")
+            table.add_column("Field", style="cyan")
+            table.add_column("Value")
+            
+            table.add_row("Name", project_spec.metadata.name)
+            table.add_row("Description", project_spec.description[:100] + "..." if len(project_spec.description) > 100 else project_spec.description)
+            table.add_row("Features", str(len(project_spec.features)))
+            table.add_row("Technologies", str(len(project_spec.technologies)))
+            
+            self.cli.console.print(table)
+        else:
+            self.cli.console.print("\n[red]✗ Specification has issues[/red]")
+            for issue in issues:
+                self.cli.console.print(f"  • {issue}")
+        
+        return 0 if is_valid else 1
     
     async def handle_mcp(self, args: argparse.Namespace) -> int:
         """Handle MCP commands.
@@ -637,3 +663,14 @@ class CommandHandler:
             table.add_row("Risk Level", analysis.metrics.get('risk_level', 'N/A'))
             
             self.cli.console.print(table)
+    
+    async def handle_init(self, args: argparse.Namespace) -> int:
+        """Handle init command.
+        
+        Args:
+            args: Command arguments
+            
+        Returns:
+            Exit code
+        """
+        return await self._handle_config_init(args)

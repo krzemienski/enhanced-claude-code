@@ -262,3 +262,44 @@ class Settings(BuilderConfig):
         if name in self._dynamic_attrs:
             return self._dynamic_attrs[name]
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+    
+    def load_from_file(self, file_path: Path) -> None:
+        """Load settings from file.
+        
+        Args:
+            file_path: Path to settings file
+        """
+        import json
+        
+        if file_path.suffix == '.json':
+            with open(file_path, 'r') as f:
+                config = json.load(f)
+        elif file_path.suffix in ['.yaml', '.yml']:
+            import yaml
+            with open(file_path, 'r') as f:
+                config = yaml.safe_load(f)
+        else:
+            raise ValueError(f"Unsupported config file format: {file_path.suffix}")
+        
+        self.update(config)
+    
+    def save_to_file(self, file_path: Path) -> None:
+        """Save settings to file.
+        
+        Args:
+            file_path: Path to save settings
+        """
+        import json
+        
+        config = self.to_dict()
+        config['api_key'] = self.api_key
+        
+        if file_path.suffix == '.json':
+            with open(file_path, 'w') as f:
+                json.dump(config, f, indent=2, default=str)
+        elif file_path.suffix in ['.yaml', '.yml']:
+            import yaml
+            with open(file_path, 'w') as f:
+                yaml.safe_dump(config, f, default_flow_style=False)
+        else:
+            raise ValueError(f"Unsupported config file format: {file_path.suffix}")

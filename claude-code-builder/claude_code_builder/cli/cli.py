@@ -38,9 +38,11 @@ class CLI:
         self.console = Console(
             force_terminal=True,
             force_interactive=True,
-            no_color=args.no_color
+            no_color=getattr(args, 'no_color', False)
         )
-        self.terminal = RichTerminal(self.console)
+        from ..ui.terminal import UIConfig
+        ui_config = UIConfig(enable_colors=not getattr(args, 'no_color', False))
+        self.terminal = RichTerminal(ui_config)
         self.file_handler = FileHandler()
         self.command_handler = CommandHandler(self)
         
@@ -100,16 +102,13 @@ class CLI:
         output_dir = self.args.output_dir or Path(project_spec.name.lower().replace(' ', '-'))
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize orchestrator
-        orchestrator = ProjectOrchestrator(
-            project_spec=project_spec,
-            settings=self.settings,
-            output_dir=output_dir,
-            terminal=self.terminal
-        )
+        # Initialize orchestrator  
+        from ..execution.orchestrator import OrchestrationConfig
+        config = OrchestrationConfig()
+        orchestrator = ProjectOrchestrator(config=config)
         
-        # Show phases
-        self.terminal.show_phases_table(orchestrator.phases)
+        # For now, skip phases display since orchestrator doesn't expose phases directly
+        # self.terminal.show_phases_table(orchestrator.phases)
         
         if self.args.dry_run:
             self.console.print("\n[yellow]Dry run completed[/yellow]")
@@ -126,13 +125,21 @@ class CLI:
             task = progress.add_task("Building project...", total=None)
             
             try:
-                result = await orchestrator.execute()
+                # Execute project with specification
+                result = await orchestrator.execute_project(
+                    project=project_spec,
+                    context={
+                        'output_dir': str(output_dir),
+                        'settings': self.settings.to_dict(),
+                        'dry_run': self.args.dry_run
+                    }
+                )
                 progress.update(task, completed=True)
                 
                 # Show results
                 self._show_build_results(result)
                 
-                return 0 if result.success else 1
+                return 0 if result.get('status') == 'completed' else 1
                 
             except Exception as e:
                 progress.update(task, description=f"[red]Build failed: {e}[/red]")
@@ -168,30 +175,53 @@ class CLI:
         Args:
             result: Build result
         """
-        if result.success:
+        # Handle both object and dict result formats
+        status = result.get('status') if isinstance(result, dict) else getattr(result, 'status', 'unknown')
+        
+        if status == 'completed':
             self.console.print("\n[green]✓ Build completed successfully![/green]")
             
-            # Show metrics
-            if hasattr(result, 'metrics'):
+            # Show metrics if available
+            if isinstance(result, dict):
+                if 'duration' in result:
+                    table = Table(title="Build Metrics")
+                    table.add_column("Metric")
+                    table.add_column("Value", style="cyan")
+                    
+                    table.add_row("Duration", f"{result.get('duration', 0):.2f}s")
+                    if 'phases' in result:
+                        table.add_row("Phases Completed", str(result['phases'].get('completed', 0)))
+                        table.add_row("Total Phases", str(result['phases'].get('total', 0)))
+                    table.add_row("Project", result.get('project', 'Unknown'))
+                    
+                    self.console.print(table)
+            elif hasattr(result, 'duration'):
                 table = Table(title="Build Metrics")
                 table.add_column("Metric")
                 table.add_column("Value", style="cyan")
                 
                 table.add_row("Duration", f"{result.duration:.2f}s")
-                table.add_row("Phases Completed", str(result.phases_completed))
-                table.add_row("Files Created", str(result.files_created))
-                table.add_row("Total Tokens", f"{result.total_tokens:,}")
-                table.add_row("Estimated Cost", f"${result.estimated_cost:.2f}")
+                if hasattr(result, 'phases_completed'):
+                    table.add_row("Phases Completed", str(result.phases_completed))
+                if hasattr(result, 'files_created'):
+                    table.add_row("Files Created", str(result.files_created))
+                if hasattr(result, 'total_tokens'):
+                    table.add_row("Total Tokens", f"{result.total_tokens:,}")
+                if hasattr(result, 'estimated_cost'):
+                    table.add_row("Estimated Cost", f"${result.estimated_cost:.2f}")
                 
                 self.console.print(table)
         else:
             self.console.print("\n[red]✗ Build failed![/red]")
             
-            if hasattr(result, 'error'):
-                self.console.print(f"\n[red]Error:[/red] {result.error}")
+            # Show error information
+            error = result.get('error') if isinstance(result, dict) else getattr(result, 'error', None)
+            if error:
+                self.console.print(f"\n[red]Error:[/red] {error}")
             
-            if hasattr(result, 'failed_phase'):
-                self.console.print(f"[red]Failed at phase:[/red] {result.failed_phase}")
+            failed_phase = result.get('failed_phase') if isinstance(result, dict) else getattr(result, 'failed_phase', None)
+            if failed_phase:
+                self.console.print(f"[red]Failed at phase:[/red] {failed_phase}")
     
     def _handle_error(self, error: ClaudeCodeBuilderError) -> None:
         """Handle application error.

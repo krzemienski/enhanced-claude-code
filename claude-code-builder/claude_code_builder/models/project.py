@@ -282,7 +282,14 @@ class ProjectSpec(SerializableModel, TimestampedModel, IdentifiedModel, Versione
             sections[current_section] = '\n'.join(current_content).strip()
         
         # Extract metadata
-        name = sections.get('project', sections.get('name', 'Unnamed Project'))
+        # Use first H1 title as project name if available
+        first_title = None
+        for line in content.split('\n'):
+            if line.startswith('# '):
+                first_title = line[2:].strip()
+                break
+        
+        name = sections.get('project', sections.get('name', first_title or 'Unnamed Project'))
         description = sections.get('description', sections.get('overview', ''))
         
         metadata = ProjectMetadata(

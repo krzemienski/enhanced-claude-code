@@ -1,0 +1,13 @@
+api_key: your-api-key-here
+cache:
+  enabled: true
+  ttl: 3600
+max_tokens: 100000
+mcp_servers: {}
+model: claude-3-sonnet-20240229
+research:
+  api_key: optional-perplexity-key
+  enabled: true
+ui:
+  color: true
+  rich: true
