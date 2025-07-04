@@ -19,7 +19,7 @@ Thumbs.db
 .env.local
 
 # Build outputs
-/claude-code-builder/
+# /claude-code-builder/  # Commented out - this directory should be tracked
 /build/
 /dist/
 
