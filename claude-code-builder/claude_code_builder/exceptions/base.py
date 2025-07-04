@@ -283,3 +283,30 @@ class RecoveryError(ClaudeCodeBuilderError):
             details["recovery_attempt"] = recovery_attempt
         kwargs["details"] = details
         super().__init__(message, error_code="RECOVERY_ERROR", **kwargs)
+
+
+class FileOperationError(ClaudeCodeBuilderError):
+    """Raised when file operations fail."""
+    
+    def __init__(
+        self,
+        message: str,
+        file_path: Optional[str] = None,
+        operation: Optional[str] = None,
+        **kwargs
+    ):
+        """Initialize file operation error.
+        
+        Args:
+            message: Error message
+            file_path: The file path that caused the error
+            operation: The file operation that failed
+            **kwargs: Additional error details
+        """
+        details = kwargs.get("details", {})
+        if file_path:
+            details["file_path"] = file_path
+        if operation:
+            details["operation"] = operation
+        kwargs["details"] = details
+        super().__init__(message, error_code="FILE_OPERATION_ERROR", **kwargs)
