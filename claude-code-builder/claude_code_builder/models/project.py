@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Set
 from pathlib import Path
 from datetime import datetime
+import re
 
 from .base import SerializableModel, TimestampedModel, IdentifiedModel, VersionedModel
 from ..exceptions import ValidationError
@@ -246,6 +247,123 @@ class ProjectSpec(SerializableModel, TimestampedModel, IdentifiedModel, Versione
         api_factor = 1 + (len(self.api_endpoints) * 0.05)
         
         return base_days * tech_factor * api_factor
+    
+    @classmethod
+    def from_markdown(cls, content: str) -> 'ProjectSpec':
+        """Create ProjectSpec from markdown content.
+        
+        Args:
+            content: Markdown content
+            
+        Returns:
+            ProjectSpec instance
+        """
+        # Parse markdown sections
+        sections = {}
+        current_section = None
+        current_content = []
+        
+        for line in content.split('\n'):
+            # Check for section header
+            if line.startswith('# '):
+                if current_section:
+                    sections[current_section] = '\n'.join(current_content).strip()
+                current_section = line[2:].strip().lower()
+                current_content = []
+            elif line.startswith('## '):
+                if current_section:
+                    subsection = line[3:].strip().lower()
+                    current_section = f"{current_section}.{subsection}"
+            else:
+                current_content.append(line)
+        
+        # Add last section
+        if current_section:
+            sections[current_section] = '\n'.join(current_content).strip()
+        
+        # Extract metadata
+        name = sections.get('project', sections.get('name', 'Unnamed Project'))
+        description = sections.get('description', sections.get('overview', ''))
+        
+        metadata = ProjectMetadata(
+            name=name,
+            description=description,
+            author=sections.get('author', ''),
+            license=sections.get('license', 'MIT')
+        )
+        
+        # Extract features
+        features = []
+        features_section = sections.get('features', sections.get('requirements', ''))
+        if features_section:
+            feature_lines = []
+            current_feature = None
+            
+            for line in features_section.split('\n'):
+                line = line.strip()
+                if line.startswith('###'):
+                    if current_feature:
+                        features.append(Feature(
+                            name=current_feature,
+                            description='\n'.join(feature_lines)
+                        ))
+                    current_feature = line[3:].strip()
+                    feature_lines = []
+                elif line and current_feature:
+                    feature_lines.append(line)
+            
+            # Add last feature
+            if current_feature:
+                features.append(Feature(
+                    name=current_feature,
+                    description='\n'.join(feature_lines)
+                ))
+        
+        # Extract technologies
+        technologies = []
+        tech_section = sections.get('technologies', sections.get('tech stack', ''))
+        if tech_section:
+            for line in tech_section.split('\n'):
+                line = line.strip()
+                if line and (line.startswith('-') or line.startswith('*')):
+                    tech_str = line[1:].strip()
+                    # Parse technology string (e.g., "Python 3.9 (required)")
+                    parts = tech_str.split()
+                    if parts:
+                        tech_name = parts[0]
+                        tech_version = None
+                        required = True
+                        
+                        # Look for version
+                        for i, part in enumerate(parts[1:]):
+                            if re.match(r'^\d+\.\d+', part):
+                                tech_version = part
+                            elif 'optional' in part.lower():
+                                required = False
+                        
+                        technologies.append(Technology(
+                            name=tech_name,
+                            version=tech_version,
+                            required=required
+                        ))
+        
+        # Create ProjectSpec
+        spec = cls(
+            metadata=metadata,
+            description=description,
+            features=features,
+            technologies=technologies
+        )
+        
+        # Add additional attributes for CLI compatibility
+        spec.name = metadata.name
+        spec.project_type = 'application'
+        spec.language = 'python'
+        spec.framework = None
+        spec.requirements = [f.name for f in features]
+        spec.constraints = []
+        
+        return spec
     
     def to_markdown(self) -> str:
         """Convert specification to markdown format."""

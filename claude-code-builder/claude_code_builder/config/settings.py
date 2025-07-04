@@ -217,3 +217,48 @@ class BuilderConfig:
 
 # Create a default configuration instance
 DEFAULT_CONFIG = BuilderConfig()
+
+
+class Settings(BuilderConfig):
+    """Settings class for backward compatibility."""
+    
+    def __init__(self, **kwargs):
+        """Initialize settings.
+        
+        Args:
+            **kwargs: Configuration values
+        """
+        super().__init__(**kwargs)
+        
+        # Additional dynamic attributes
+        self._dynamic_attrs = {}
+        
+        # Common attributes for compatibility
+        self.api_key = kwargs.get('api_key', os.environ.get('ANTHROPIC_API_KEY', ''))
+        self.model = self.ai.model
+        self.max_tokens = self.ai.max_tokens
+    
+    def update(self, config: Dict[str, Any]) -> None:
+        """Update settings from dictionary.
+        
+        Args:
+            config: Configuration dictionary
+        """
+        for key, value in config.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                self._dynamic_attrs[key] = value
+    
+    def __getattr__(self, name: str) -> Any:
+        """Get dynamic attribute.
+        
+        Args:
+            name: Attribute name
+            
+        Returns:
+            Attribute value
+        """
+        if name in self._dynamic_attrs:
+            return self._dynamic_attrs[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
