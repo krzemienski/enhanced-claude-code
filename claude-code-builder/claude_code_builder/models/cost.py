@@ -142,6 +142,32 @@ class CostBreakdown:
 
 
 @dataclass
+class SessionInfo(SerializableModel, TimestampedModel):
+    """Information about a Claude Code session."""
+    
+    session_id: str = ""
+    phase: str = ""
+    cost: float = 0.0
+    duration_ms: int = 0
+    num_turns: int = 0
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        data = super().to_dict()
+        data["timestamp"] = self.timestamp.isoformat()
+        return data
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SessionInfo":
+        """Create from dictionary."""
+        if "timestamp" in data and isinstance(data["timestamp"], str):
+            data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+        return super().from_dict(data)
+
+
+@dataclass
 class CostTracker(SerializableModel):
     """Main cost tracking system."""
     
