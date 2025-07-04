@@ -277,40 +277,87 @@ class TechnologyAnalyst(BaseResearchAgent):
         """Analyze technology trends relevant to the project."""
         findings = []
         
-        # Simulated trend data (in real implementation, would fetch from external sources)
-        trends = {
-            "javascript": {
-                "rising": ["Vite", "Bun", "Astro", "SolidJS"],
-                "stable": ["React", "Vue", "Node.js"],
-                "declining": ["Webpack", "jQuery"]
-            },
-            "python": {
-                "rising": ["FastAPI", "Pydantic", "Poetry"],
-                "stable": ["Django", "Flask", "pytest"],
-                "declining": ["Python 2.x"]
-            }
-        }
+        # Use AI for real trend analysis
+        import os
+        from anthropic import AsyncAnthropic
         
+        api_key = os.environ.get('ANTHROPIC_API_KEY') or self.ai_config.api_key
+        if api_key:
+            client = AsyncAnthropic(api_key=api_key)
+            
+            tech_names = [t.name for t in context.project_spec.technologies]
+            prompt = f"""Analyze current technology trends for: {', '.join(tech_names)}
+
+For each technology, provide:
+1. Current trend status (rising/stable/declining)
+2. Market adoption rate
+3. Community activity level
+4. Alternative technologies to consider
+
+Format as JSON with structure:
+{{
+  "technology_name": {{
+    "status": "rising|stable|declining",
+    "adoption": "high|medium|low",
+    "community": "very active|active|moderate|low",
+    "alternatives": ["tech1", "tech2"]
+  }}
+}}"""
+
+            try:
+                response = await client.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=1500,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                
+                import json
+                import re
+                
+                content = response.content[0].text
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                
+                if json_match:
+                    trends_data = json.loads(json_match.group())
+                    
+                    for tech in context.project_spec.technologies:
+                        if tech.name in trends_data:
+                            data = trends_data[tech.name]
+                            findings.append({
+                                "title": f"{tech.name} Trend Analysis",
+                                "description": f"{tech.name} is {data['status']} with {data['adoption']} adoption and {data['community']} community",
+                                "relevance": 0.8,
+                                "trend": data['status'],
+                                "adoption": data['adoption'],
+                                "community": data['community'],
+                                "alternatives": data.get('alternatives', []),
+                                "source": "Real-time Analysis"
+                            })
+                    
+                    return {"findings": findings}
+                
+            except Exception as e:
+                logger.warning(f"Failed to get real trends data: {e}")
+        
+        # Fallback to basic analysis
         for tech in context.project_spec.technologies:
             ecosystem = self._get_ecosystem(tech.name)
-            if ecosystem in trends:
-                trend_data = trends[ecosystem]
-                
-                tech_lower = tech.name.lower()
-                if any(t.lower() == tech_lower for t in trend_data["rising"]):
-                    status = "rising"
-                elif any(t.lower() == tech_lower for t in trend_data["declining"]):
-                    status = "declining"
-                else:
-                    status = "stable"
-                
-                findings.append({
-                    "title": f"{tech.name} Trend Analysis",
-                    "description": f"{tech.name} is currently {status} in popularity",
-                    "relevance": 0.6,
-                    "trend": status,
-                    "source": "Technology Trends"
-                })
+            
+            # Basic heuristic based on technology name
+            if any(keyword in tech.name.lower() for keyword in ['next.js', 'vite', 'fastapi', 'rust', 'go', 'svelte', 'bun']):
+                status = "rising"
+            elif any(keyword in tech.name.lower() for keyword in ['jquery', 'backbone', 'coffeescript']):
+                status = "declining"
+            else:
+                status = "stable"
+            
+            findings.append({
+                "title": f"{tech.name} Trend Analysis",
+                "description": f"{tech.name} appears to be {status} based on general patterns",
+                "relevance": 0.5,
+                "trend": status,
+                "source": "Heuristic Analysis"
+            })
         
         return {"findings": findings}
     

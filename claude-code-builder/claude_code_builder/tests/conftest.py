@@ -10,7 +10,7 @@ import json
 from claude_code_builder.models.project import ProjectSpec
 from claude_code_builder.models.phase import Phase
 from claude_code_builder.config.settings import BuilderConfig
-from claude_code_builder.memory.memory_manager import MemoryManager
+from claude_code_builder.memory.store import PersistentMemoryStore
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ def mock_api_response() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def memory_manager(temp_dir: Path) -> MemoryManager:
+def memory_manager(temp_dir: Path) -> PersistentMemoryStore:
     """Create a test memory manager.
     
     Args:
@@ -152,7 +152,7 @@ def memory_manager(temp_dir: Path) -> MemoryManager:
         Memory manager instance
     """
     db_path = temp_dir / "test_memory.db"
-    manager = MemoryManager(db_path=db_path)
+    manager = PersistentMemoryStore(db_path=str(db_path))
     return manager
 
 

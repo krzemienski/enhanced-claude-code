@@ -1,159 +1,36 @@
-# Advanced Web Application
+# Todo List API
 
-A full-featured web application with user authentication, REST API, and real-time features.
+A RESTful API for managing todo lists with user authentication.
 
-# Description
+## Description
 
-This project creates a modern web application with the following components:
-- User authentication and authorization system
-- RESTful API with CRUD operations
-- Real-time chat functionality
-- Dashboard with analytics
-- Mobile-responsive design
+A comprehensive todo list application backend built with Python and FastAPI. The API provides full CRUD operations for todo items, user authentication with JWT tokens, and data persistence using SQLAlchemy with PostgreSQL. The application follows RESTful principles and includes proper error handling, input validation, and comprehensive documentation.
 
-# Features
+## Features
 
 ### User Authentication
-- User registration and login
-- JWT token-based authentication
-- Password reset functionality
-- Social login (Google, GitHub)
+Secure user registration and login system with JWT token-based authentication. Includes password hashing, token refresh mechanisms, and protected endpoints.
 
-### API System
-- RESTful API endpoints
-- Data validation and sanitization
-- Rate limiting and throttling
-- API documentation with Swagger
+### Todo Management
+Complete CRUD operations for todo items including create, read, update, and delete. Support for filtering by status, due date, and priority. Pagination for large datasets.
 
-### Real-time Features
-- WebSocket-based chat system
-- Live notifications
-- Real-time dashboard updates
-- Online user presence
+### Data Validation
+Comprehensive input validation using Pydantic models. Custom validators for email formats, password strength, and date ranges.
 
-### Frontend Interface
-- React.js single-page application
-- Responsive design with Tailwind CSS
-- Interactive data visualizations
-- Progressive Web App features
+### API Documentation
+Auto-generated interactive API documentation using FastAPI's built-in Swagger UI and ReDoc interfaces.
 
-### Backend Infrastructure
-- Node.js with Express framework
-- PostgreSQL database with Prisma ORM
-- Redis for caching and sessions
-- Docker containerization
+## Technologies
 
-# Technologies
-
-- JavaScript ES2022 (required)
-- Node.js 18+ (required)
-- React 18 (required)
-- Express.js 4.18 (required)
-- PostgreSQL 14 (required)
-- Redis 7 (required)
-- Docker (optional)
-- Tailwind CSS 3.3 (required)
-- Socket.io 4.7 (required)
-- Prisma 5.0 (required)
-
-# Technical Requirements
-
-### Performance
-- Response time under 200ms for API calls
-- Support for 1000+ concurrent users
-- Efficient caching strategy
-- Optimized database queries
-
-### Security
-- HTTPS encryption
-- Input validation and sanitization
-- SQL injection protection
-- XSS and CSRF protection
-- Secure session management
-
-### Scalability
-- Horizontal scaling capability
-- Load balancing ready
-- Database connection pooling
-- CDN integration for static assets
-
-# Project Structure
-
-```
-advanced-web-app/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── hooks/
-│   │   ├── utils/
-│   │   └── App.js
-│   ├── public/
-│   └── package.json
-├── backend/
-│   ├── src/
-│   │   ├── routes/
-│   │   ├── middleware/
-│   │   ├── models/
-│   │   ├── services/
-│   │   └── server.js
-│   ├── prisma/
-│   └── package.json
-├── docker-compose.yml
-├── README.md
-└── .env.example
-```
-
-# API Endpoints
-
-### Authentication
-- POST /api/auth/register - User registration
-- POST /api/auth/login - User login
-- POST /api/auth/logout - User logout
-- POST /api/auth/refresh - Refresh token
-- POST /api/auth/reset-password - Password reset
-
-### Users
-- GET /api/users/profile - Get user profile
-- PUT /api/users/profile - Update user profile
-- GET /api/users/search - Search users
-- DELETE /api/users/account - Delete account
-
-### Chat
-- GET /api/chat/rooms - Get chat rooms
-- POST /api/chat/rooms - Create chat room
-- GET /api/chat/messages/:roomId - Get messages
-- POST /api/chat/messages - Send message
-
-### Analytics
-- GET /api/analytics/dashboard - Dashboard data
-- GET /api/analytics/metrics - Application metrics
-- GET /api/analytics/reports - Generate reports
-
-# Implementation Details
-
-### Database Schema
-- Users table with authentication fields
-- Chat rooms and messages tables
-- Analytics events table
-- User sessions table
-
-### Real-time Architecture
-- Socket.io for WebSocket connections
-- Event-driven message handling
-- Room-based chat organization
-- Presence tracking
-
-### Security Measures
-- JWT tokens with refresh mechanism
-- Password hashing with bcrypt
-- Rate limiting per endpoint
-- Input validation with Joi
-- SQL injection prevention
-
-### Testing Strategy
-- Unit tests for all components
-- Integration tests for API endpoints
-- End-to-end tests with Cypress
-- Performance testing with load tests
-- Security testing with automated scans
+- Python 3.11 (required)
+- FastAPI 0.104.1 (required)
+- SQLAlchemy 2.0.23 (required)
+- PostgreSQL 15 (required)
+- Pydantic 2.5.0 (required)
+- python-jose[cryptography] 3.3.0 (required)
+- passlib[bcrypt] 1.7.4 (required)
+- python-multipart 0.0.6 (required)
+- alembic 1.12.1 (required)
+- pytest 7.4.3 (optional)
+- pytest-asyncio 0.21.1 (optional)
+- httpx 0.25.2 (optional)

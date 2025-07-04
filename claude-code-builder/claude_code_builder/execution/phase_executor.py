@@ -13,6 +13,7 @@ from ..sdk.client import ClaudeCodeClient
 from ..mcp.registry import MCPRegistry
 from ..research.coordinator import ResearchCoordinator
 from ..instructions.executor import RuleExecutor
+from ..exceptions import ExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +324,7 @@ class PhaseExecutor:
                     t for t in self.current_state.phase.tasks
                     if t.id not in completed
                 ]
-                raise BuildError(
+                raise ExecutionError(
                     f"Cannot execute remaining tasks: {[t.name for t in remaining]}"
                 )
             
@@ -725,36 +726,155 @@ class PhaseExecutor:
     
     async def _validate_code(self) -> Dict[str, Any]:
         """Validate generated code."""
-        # Placeholder implementation
+        from ..validation.syntax_validator import SyntaxValidator
+        import os
+        from pathlib import Path
+        
+        errors = []
+        warnings = []
+        
+        # Get output directory from context
+        output_dir = self.current_state.context.get('output_dir', '.')
+        output_path = Path(output_dir)
+        
+        # Initialize syntax validator
+        validator = SyntaxValidator()
+        
+        # Validate all Python files
+        for py_file in output_path.rglob("*.py"):
+            result = await validator.validate_file(py_file)
+            if not result.valid:
+                errors.extend([f"{py_file}: {e}" for e in result.errors])
+            warnings.extend([f"{py_file}: {w}" for w in result.warnings])
+        
+        # Validate all JSON files
+        for json_file in output_path.rglob("*.json"):
+            result = await validator.validate_file(json_file)
+            if not result.valid:
+                errors.extend([f"{json_file}: {e}" for e in result.errors])
+        
         return {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
         }
     
     async def _validate_structure(self) -> Dict[str, Any]:
         """Validate project structure."""
-        # Placeholder implementation
+        from pathlib import Path
+        
+        errors = []
+        warnings = []
+        
+        output_dir = self.current_state.context.get('output_dir', '.')
+        output_path = Path(output_dir)
+        
+        # Check required directories
+        required_dirs = ['src', 'tests']
+        for dir_name in required_dirs:
+            if not (output_path / dir_name).exists():
+                errors.append(f"Required directory missing: {dir_name}")
+        
+        # Check for main entry point
+        main_files = ['src/main.py', 'src/__main__.py', 'main.py']
+        if not any((output_path / f).exists() for f in main_files):
+            warnings.append("No main entry point found (main.py)")
+        
+        # Check for tests
+        test_files = list(output_path.glob("tests/test_*.py"))
+        if not test_files:
+            warnings.append("No test files found")
+        
+        # Check for documentation
+        if not (output_path / "README.md").exists():
+            warnings.append("No README.md found")
+        
         return {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
         }
     
     async def _validate_dependencies(self) -> Dict[str, Any]:
         """Validate dependencies."""
-        # Placeholder implementation
+        from pathlib import Path
+        import ast
+        
+        errors = []
+        warnings = []
+        
+        output_dir = self.current_state.context.get('output_dir', '.')
+        output_path = Path(output_dir)
+        
+        # Collect all imports from Python files
+        imports = set()
+        for py_file in output_path.rglob("*.py"):
+            try:
+                with open(py_file, 'r') as f:
+                    tree = ast.parse(f.read())
+                    
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            imports.add(alias.name.split('.')[0])
+                    elif isinstance(node, ast.ImportFrom):
+                        if node.module:
+                            imports.add(node.module.split('.')[0])
+            except Exception as e:
+                warnings.append(f"Failed to parse {py_file}: {e}")
+        
+        # Check if requirements.txt exists
+        req_file = output_path / "requirements.txt"
+        if req_file.exists():
+            with open(req_file, 'r') as f:
+                requirements = {line.strip().split('==')[0].split('>=')[0] 
+                              for line in f if line.strip() and not line.startswith('#')}
+            
+            # Check for missing dependencies
+            stdlib_modules = {'os', 'sys', 'json', 'datetime', 'pathlib', 'typing', 
+                            'collections', 'itertools', 'functools', 'asyncio'}
+            external_imports = imports - stdlib_modules
+            missing = external_imports - requirements
+            
+            if missing:
+                warnings.append(f"Potentially missing dependencies: {', '.join(missing)}")
+        else:
+            if imports - {'os', 'sys', 'json'}:  # Basic stdlib
+                errors.append("No requirements.txt file found")
+        
         return {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
         }
     
     async def _validate_general(self) -> Dict[str, Any]:
         """General validation."""
-        # Placeholder implementation
+        from pathlib import Path
+        
+        errors = []
+        warnings = []
+        
+        output_dir = self.current_state.context.get('output_dir', '.')
+        output_path = Path(output_dir)
+        
+        # Check if any files were created
+        all_files = list(output_path.rglob("*"))
+        if not all_files:
+            errors.append("No files were created")
+        
+        # Check file permissions
+        for file_path in output_path.rglob("*.py"):
+            if not os.access(file_path, os.R_OK):
+                errors.append(f"File not readable: {file_path}")
+        
+        # Check for large files
+        for file_path in output_path.rglob("*"):
+            if file_path.is_file() and file_path.stat().st_size > 1_000_000:  # 1MB
+                warnings.append(f"Large file detected: {file_path} ({file_path.stat().st_size} bytes)")
+        
         return {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
         }

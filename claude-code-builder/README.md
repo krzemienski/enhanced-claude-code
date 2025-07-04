@@ -1,12 +1,15 @@
 # Claude Code Builder v3.0
 
-## 🚀 Autonomous AI-Powered Project Builder
+> 🚀 **An AI-powered autonomous project builder that transforms markdown specifications into production-ready software using Claude's advanced capabilities**
 
-Claude Code Builder v3.0 is a sophisticated autonomous project builder that transforms markdown specifications into complete, production-ready software projects using Claude AI. It features multi-phase execution, real-time monitoring, comprehensive validation, and intelligent planning capabilities.
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-production-brightgreen.svg)](https://github.com/anthropics/claude-code-builder)
+[![Claude API](https://img.shields.io/badge/Claude-Opus%203-purple.svg)](https://www.anthropic.com)
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-green.svg)]()
+## 🌟 Overview
+
+Claude Code Builder v3.0 is a revolutionary tool that automates the entire software development lifecycle. Given a markdown specification, it intelligently plans, generates, validates, and delivers complete production-ready projects with zero human intervention required.
 
 ## 📋 Table of Contents
 

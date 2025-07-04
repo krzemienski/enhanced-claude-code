@@ -112,34 +112,59 @@ class ExecutionOrchestrator:
             context=context or {}
         )
         
-        logger.info(f"Starting project execution: {project.metadata.name}")
+        logger.info(f"Starting project execution: {project.name}")
         
         try:
-            # For now, simulate basic project execution
-            # TODO: Implement full execution when all components are ready
-            await asyncio.sleep(1)  # Simulate work
+            # Check if we should use real execution
+            import os
+            api_key = os.environ.get('ANTHROPIC_API_KEY') or context.get('api_key')
+            output_dir = context.get('output_dir')
             
-            # Create basic success result
-            execution_result = {
-                "status": "completed",
-                "execution_id": execution_id,
-                "project": project.metadata.name,
-                "duration": (datetime.now() - self.state.start_time).total_seconds(),
-                "phases": {
-                    "total": 5,  # Simulated
-                    "completed": 5,  # Simulated
-                    "failed": 0
-                },
-                "results": {},
-                "errors": [],
-                "metadata": {}
-            }
-            
-            logger.info(
-                f"Project execution completed: {execution_result['status']}"
-            )
-            
-            return execution_result
+            if api_key and output_dir and not context.get('dry_run'):
+                # Use real executor
+                from .real_executor import RealExecutor
+                from pathlib import Path
+                
+                executor = RealExecutor(
+                    api_key=api_key,
+                    output_dir=Path(output_dir)
+                )
+                
+                # Execute with real implementation
+                execution_result = await executor.execute_project(project)
+                execution_result['execution_id'] = execution_id
+                
+                logger.info(
+                    f"Project execution completed: {execution_result['status']}"
+                )
+                
+                return execution_result
+            else:
+                # Simulate execution for dry runs or when no API key
+                logger.info("Running in simulation mode (dry run or no API key)")
+                await asyncio.sleep(1)  # Simulate work
+                
+                # Create basic success result
+                execution_result = {
+                    "status": "completed",
+                    "execution_id": execution_id,
+                    "project": project.name,
+                    "duration": (datetime.now() - self.state.start_time).total_seconds(),
+                    "phases": {
+                        "total": 5,  # Simulated
+                        "completed": 5,  # Simulated
+                        "failed": 0
+                    },
+                    "results": {},
+                    "errors": [],
+                    "metadata": {"mode": "simulated"}
+                }
+                
+                logger.info(
+                    f"Project execution completed: {execution_result['status']}"
+                )
+                
+                return execution_result
             
         except Exception as e:
             logger.error(f"Project execution failed: {e}")
@@ -149,7 +174,7 @@ class ExecutionOrchestrator:
                 "status": "failed",
                 "error": str(e),
                 "execution_id": execution_id,
-                "project": project.metadata.name,
+                "project": project.name,
                 "duration": (datetime.now() - self.state.start_time).total_seconds(),
                 "phases": {
                     "total": 0,

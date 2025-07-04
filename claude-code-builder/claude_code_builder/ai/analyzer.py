@@ -463,22 +463,78 @@ class SpecificationAnalyzer:
         initial_result: AnalysisResult
     ) -> AnalysisResult:
         """Enhance analysis with AI insights."""
-        # This would make actual AI API calls in production
-        # For now, we'll simulate enhancement
+        import os
+        from anthropic import AsyncAnthropic
         
         logger.info("Enhancing analysis with AI")
         
-        # Simulate token usage
-        initial_result.tokens_used = 1500
+        # Get API key from environment or config
+        api_key = os.environ.get('ANTHROPIC_API_KEY') or self.ai_config.api_key
+        if not api_key:
+            logger.warning("No API key available, skipping AI enhancement")
+            return initial_result
         
-        # Add AI-generated insights
-        if project_spec.performance_requirements.response_time_ms < 100:
-            initial_result.key_challenges.append("Ultra-low latency requirement needs edge computing")
-            initial_result.recommended_approaches.append("Implement edge caching and CDN")
+        client = AsyncAnthropic(api_key=api_key)
         
-        if len(project_spec.technologies) > 10:
-            initial_result.potential_bottlenecks.append("Technology stack complexity may slow development")
-            initial_result.recommended_approaches.append("Consider consolidating similar technologies")
+        # Prepare prompt for AI analysis
+        prompt = f"""Analyze this project specification and provide insights:
+
+Project: {project_spec.name}
+Description: {project_spec.description}
+
+Key Requirements:
+- Features: {len(project_spec.features)} features
+- Technologies: {', '.join(t.name for t in project_spec.technologies)}
+- Performance: {project_spec.performance_requirements.response_time_ms}ms response time
+
+Initial Analysis:
+- Risks: {initial_result.key_risks}
+- Challenges: {initial_result.key_challenges}
+- Bottlenecks: {initial_result.potential_bottlenecks}
+
+Provide additional insights about:
+1. Hidden technical challenges
+2. Architecture recommendations
+3. Performance optimization strategies
+4. Technology stack improvements
+5. Risk mitigation approaches
+
+Format as JSON with keys: challenges, recommendations, bottlenecks, optimizations"""
+
+        try:
+            response = await client.messages.create(
+                model=self.ai_config.model or "claude-3-opus-20240229",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            content = response.content[0].text
+            
+            # Parse AI response
+            import json
+            import re
+            
+            # Extract JSON from response
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                ai_insights = json.loads(json_match.group())
+                
+                # Add AI insights to result
+                if 'challenges' in ai_insights:
+                    initial_result.key_challenges.extend(ai_insights['challenges'])
+                if 'recommendations' in ai_insights:
+                    initial_result.recommended_approaches.extend(ai_insights['recommendations'])
+                if 'bottlenecks' in ai_insights:
+                    initial_result.potential_bottlenecks.extend(ai_insights['bottlenecks'])
+                if 'optimizations' in ai_insights:
+                    initial_result.optimization_opportunities.extend(ai_insights['optimizations'])
+            
+            # Calculate actual tokens used
+            initial_result.tokens_used = response.usage.total_tokens
+            
+        except Exception as e:
+            logger.error(f"AI enhancement failed: {e}")
+            # Continue with initial result if AI fails
         
         return initial_result
     

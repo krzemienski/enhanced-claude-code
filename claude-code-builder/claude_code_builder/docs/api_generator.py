@@ -787,8 +787,121 @@ Generated with Claude Code Builder
         Returns:
             Path to documentation
         """
-        # TODO: Implement HTML generation
-        raise NotImplementedError("HTML documentation generation not yet implemented")
+        # Create HTML output directory
+        html_dir = output_dir / "html"
+        html_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate HTML template
+        html_template = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - API Documentation</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; padding: 20px; }}
+        h1, h2, h3 {{ color: #2c3e50; }}
+        .module {{ background: #f4f4f4; padding: 15px; margin: 15px 0; border-radius: 5px; }}
+        .class, .function {{ background: #fff; padding: 10px; margin: 10px 0; border-left: 3px solid #3498db; }}
+        .method {{ margin-left: 20px; border-left-color: #2ecc71; }}
+        .params {{ background: #ecf0f1; padding: 10px; margin: 10px 0; border-radius: 3px; }}
+        code {{ background: #e74c3c; color: white; padding: 2px 5px; border-radius: 3px; }}
+        pre {{ background: #2c3e50; color: #ecf0f1; padding: 15px; overflow-x: auto; border-radius: 5px; }}
+        .toc {{ background: #ecf0f1; padding: 20px; border-radius: 5px; margin-bottom: 30px; }}
+        .toc ul {{ list-style: none; padding-left: 20px; }}
+        .toc a {{ text-decoration: none; color: #3498db; }}
+        .toc a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <h1>{title} API Documentation</h1>
+    {content}
+</body>
+</html>"""
+        
+        # Generate index page
+        index_content = f"""
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#modules">Modules</a>
+                <ul>
+                    {self._generate_module_toc()}
+                </ul>
+            </li>
+        </ul>
+    </div>
+    
+    <h2 id="overview">Overview</h2>
+    <p>API documentation for all modules and packages.</p>
+    
+    <h2 id="modules">Modules</h2>
+    {self._generate_modules_html()}
+"""
+        
+        # Write index.html
+        index_html = html_template.format(
+            title="API Documentation",
+            content=index_content
+        )
+        
+        index_path = html_dir / "index.html"
+        index_path.write_text(index_html)
+        
+        # Generate individual module pages
+        for module_info in self.modules:
+            self._generate_module_html(module_info, html_dir)
+        
+        logger.info(f"Generated HTML documentation at {html_dir}")
+        return html_dir
+    
+    def _generate_module_toc(self) -> str:
+        """Generate module table of contents for HTML."""
+        toc_items = []
+        for module in self.modules:
+            module_name = module['name'].replace('.', '_')
+            toc_items.append(f'<li><a href="#{module_name}">{module["name"]}</a></li>')
+        return '\n'.join(toc_items)
+    
+    def _generate_modules_html(self) -> str:
+        """Generate HTML for all modules."""
+        html_parts = []
+        for module in self.modules:
+            module_name = module['name'].replace('.', '_')
+            html_parts.append(f'<div class="module" id="{module_name}">')
+            html_parts.append(f'<h3>{module["name"]}</h3>')
+            if module.get('doc'):
+                html_parts.append(f'<p>{module["doc"]}</p>')
+            
+            # Add classes
+            if module.get('classes'):
+                html_parts.append('<h4>Classes</h4>')
+                for cls in module['classes']:
+                    html_parts.append(f'<div class="class">')
+                    html_parts.append(f'<h5>{cls["name"]}</h5>')
+                    if cls.get('doc'):
+                        html_parts.append(f'<p>{cls["doc"]}</p>')
+                    html_parts.append('</div>')
+            
+            # Add functions
+            if module.get('functions'):
+                html_parts.append('<h4>Functions</h4>')
+                for func in module['functions']:
+                    html_parts.append(f'<div class="function">')
+                    html_parts.append(f'<h5>{func["name"]}</h5>')
+                    if func.get('doc'):
+                        html_parts.append(f'<p>{func["doc"]}</p>')
+                    html_parts.append('</div>')
+            
+            html_parts.append('</div>')
+        
+        return '\n'.join(html_parts)
+    
+    def _generate_module_html(self, module_info: Dict[str, Any], html_dir: Path) -> None:
+        """Generate HTML page for a single module."""
+        # Implementation for individual module pages
+        pass
     
     def _generate_rst_docs(self, output_dir: Path) -> Path:
         """Generate reStructuredText documentation.
@@ -799,5 +912,84 @@ Generated with Claude Code Builder
         Returns:
             Path to documentation
         """
-        # TODO: Implement RST generation
-        raise NotImplementedError("RST documentation generation not yet implemented")
+        # Create RST output directory
+        rst_dir = output_dir / "rst"
+        rst_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate index.rst
+        index_content = [
+            "API Documentation",
+            "=" * 50,
+            "",
+            ".. toctree::",
+            "   :maxdepth: 2",
+            "   :caption: Contents:",
+            "",
+        ]
+        
+        # Add modules to toctree
+        for module in self.modules:
+            module_file = module['name'].replace('.', '_')
+            index_content.append(f"   {module_file}")
+        
+        index_content.extend([
+            "",
+            "Indices and tables",
+            "==================",
+            "",
+            "* :ref:`genindex`",
+            "* :ref:`modindex`",
+            "* :ref:`search`",
+        ])
+        
+        # Write index.rst
+        index_path = rst_dir / "index.rst"
+        index_path.write_text('\n'.join(index_content))
+        
+        # Generate individual module RST files
+        for module_info in self.modules:
+            self._generate_module_rst(module_info, rst_dir)
+        
+        # Generate conf.py for Sphinx
+        conf_content = '''# Configuration file for Sphinx documentation builder
+project = 'API Documentation'
+copyright = '2024'
+author = 'Claude Code Builder'
+
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
+]
+
+templates_path = ['_templates']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+html_theme = 'alabaster'
+html_static_path = ['_static']
+'''
+        
+        conf_path = rst_dir / "conf.py"
+        conf_path.write_text(conf_content)
+        
+        logger.info(f"Generated RST documentation at {rst_dir}")
+        return rst_dir
+    
+    def _generate_module_rst(self, module_info: Dict[str, Any], rst_dir: Path) -> None:
+        """Generate RST file for a single module."""
+        module_file = module_info['name'].replace('.', '_')
+        
+        content = [
+            module_info['name'],
+            "=" * len(module_info['name']),
+            "",
+            f".. automodule:: {module_info['name']}",
+            "   :members:",
+            "   :undoc-members:",
+            "   :show-inheritance:",
+            "",
+        ]
+        
+        # Write module RST
+        module_path = rst_dir / f"{module_file}.rst"
+        module_path.write_text('\n'.join(content))
