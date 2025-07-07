@@ -1,294 +1,373 @@
-# Claude Code Builder v2.3.0 - Custom Build Instructions
+# Claude Code Builder v3.0 Enhanced - Build Instructions
 
 ## CRITICAL IMPLEMENTATION REQUIREMENTS
 
-### 1. **MODULAR ARCHITECTURE**
-- Create a proper Python package structure, NOT a single file
-- Each module should have a single responsibility
-- Use proper imports between modules
-- Follow clean architecture principles
-- Maintain clear boundaries between layers
+This document defines the implementation standards for the Claude Code Builder v3.0 Enhanced shell script that builds autonomous project builders with full memory integration, research capabilities, and production-first standards.
 
-### 2. **NO MOCK IMPLEMENTATIONS**
-- Every function, method, and class must be fully implemented
-- No placeholder code, TODOs, or "pass" statements
-- All features must be production-ready and functional
-- Test with real data and actual use cases
+### 1. **MEMORY-FIRST ARCHITECTURE (MANDATORY)**
+- **ALWAYS check mem0 BEFORE any code/task** - No exceptions
+- **SEARCH FIRST, CODE SECOND** - Memory drives all decisions
+- **Store EVERYTHING learned** for future projects
+- **Cross-project knowledge benefits** - Project A learnings help Project B
 
-### 3. **Package Structure**
-```
-claude_code_builder/
-├── __init__.py          # Package initialization, version
-├── __main__.py          # Entry point for python -m
-├── cli.py              # Click CLI application
-├── main.py             # Main ClaudeCodeBuilder class
-├── models/             # Data models and types
-├── mcp/                # MCP server management
-├── research/           # AI research system
-├── execution/          # Claude Code execution
-├── ui/                 # Rich UI components
-├── validation/         # Project validation
-├── utils/              # Utilities and helpers
-└── instructions/       # Custom instructions
+### 2. **PRODUCTION STANDARDS ENFORCEMENT**
+- **NO mock implementations** - Everything must be REAL and FUNCTIONAL
+- **NO unit tests** - Integration and end-to-end tests ONLY
+- **NO dry runs** - Execute actual builds that create real projects
+- **NO placeholders** - Complete implementations only
+- **Real APIs, databases, services** - No simulations ever
+
+### 3. **RESEARCH WORKFLOW (MANDATORY)**
+```bash
+MANDATORY RESEARCH SEQUENCE:
+1. CHECK MEM0 FIRST → Search for existing knowledge
+2. USE CONTEXT7 SECOND → Get latest documentation  
+3. WEB SEARCH THIRD → Only if mem0 and context7 insufficient
+4. STORE IN MEM0 ALWAYS → Save all findings for future use
 ```
 
-### 4. **Python Best Practices**
-- Use Python 3.8+ features appropriately
-- Type hints for ALL function signatures and class attributes
-- Comprehensive docstrings for all modules, classes, and public methods
-- Follow PEP 8 style guidelines strictly
-- Use async/await for I/O operations where beneficial
-- Proper module-level __all__ exports
+### 4. **ENHANCED SHELL SCRIPT ARCHITECTURE**
 
-### 5. **Clean Code Principles**
-- Single Responsibility Principle for each module
-- Dependency Injection where appropriate
-- Clear interfaces between modules
-- Avoid circular imports
-- Use abstract base classes for extensibility
+The builder creates a sophisticated shell script with these components:
 
-### 6. **Rich Library Integration**
-- Create a central console instance in ui/console.py
-- Use Rich components consistently throughout
-- Implement custom Rich renderables where needed
-- Apply consistent styling and themes
-- Create beautiful, colored terminal experiences
-
-### 7. **Error Handling Standards**
-- Define custom exceptions in utils/exceptions.py
-- Use exception hierarchy for different error types
-- Implement error context managers
-- User-friendly error messages with actionable suggestions
-- Proper error propagation between modules
-
-### 8. **Import Organization**
-```python
-# Standard library imports
-import os
-import sys
-from pathlib import Path
-from typing import Dict, List, Optional
-
-# Third-party imports
-import click
-from rich.console import Console
-from anthropic import Anthropic
-
-# Local imports
-from claude_code_builder.models import BuildStatus, Phase
-from claude_code_builder.ui import RichConsole
-from claude_code_builder.utils import constants
+```bash
+builder-claude-code-builder.sh
+├── Memory Integration Functions
+│   ├── check_mem0_memory()           # Search existing knowledge
+│   ├── save_memory_state()           # Store phase learnings
+│   └── load_build_state()            # Resume capability
+├── Research System Functions  
+│   ├── execute_research_phase()      # Comprehensive research
+│   ├── create_research_instructions() # Research guidelines
+│   └── Research workflow enforcement
+├── Enhanced Logging Functions
+│   ├── parse_enhanced_stream_output() # Tool usage tracking
+│   ├── display_tool_parameters()     # Parameter explanation
+│   └── Tool rationale logging
+├── Git Integration Functions
+│   ├── initialize_git_repo()         # Version control setup
+│   ├── Enhanced commit messages      # Detailed commits
+│   └── Per-phase commit automation
+├── MCP Configuration
+│   ├── setup_enhanced_mcp()          # Server configuration
+│   ├── mem0 server integration       # Persistent memory
+│   ├── context7 server integration   # Documentation
+│   └── Enhanced .mcp.json generation
+└── Production Standards Enforcement
+    ├── Dependency validation         # Required tools check
+    ├── Production requirements       # NO mocks enforcement
+    ├── Cost tracking integration     # API usage monitoring
+    └── Error handling standards
 ```
 
-### 9. **Module-Specific Requirements**
+### 5. **MCP SERVER INTEGRATION**
 
-#### models/ Package
-- Each model in its own file
-- Use @dataclass with field validation
-- Implement to_dict() and from_dict() methods
-- Add __rich__ methods for Rich rendering
-- Include proper type annotations
-
-#### mcp/ Package
-- server_registry.py contains MCP_SERVER_REGISTRY constant
-- recommendation_engine.py implements analysis logic
-- config_generator.py handles JSON generation
-- Clear separation of concerns
-
-#### research/ Package
-- base_agent.py defines abstract ResearchAgent
-- agents.py implements all 7 specialized agents
-- manager.py coordinates multi-agent research
-- Use actual Anthropic SDK
-
-#### execution/ Package
-- executor.py builds and runs Claude commands
-- streaming.py parses JSON stream events
-- phase_runner.py orchestrates phase execution
-- Proper subprocess management
-
-#### ui/ Package
-- console.py provides singleton Console instance
-- progress.py manages all progress tracking
-- display.py creates panels, tables, layouts
-- Consistent styling throughout
-
-#### validation/ Package
-- validator.py is the main validation orchestrator
-- checks.py implements individual validation checks
-- Reports validation results clearly
-- Integrates with test runners
-
-### 10. **Configuration Management**
-- Use utils/constants.py for all constants
-- Environment variables for sensitive data
-- Configuration precedence (CLI > env > defaults)
-- Validate all configuration inputs
-
-### 11. **Testing Philosophy**
-- Create functional tests in tests/functional/
-- Test actual module integration
-- Use pytest for test runner
-- Include fixtures for common setups
-- Test error scenarios
-
-### 12. **Documentation Standards**
-- Module-level docstrings explaining purpose
-- Class docstrings with usage examples
-- Method docstrings with parameter descriptions
-- Type hints serve as documentation
-- README with architecture overview
-
-### 13. **Entry Points**
-```python
-# setup.py
-entry_points={
-    'console_scripts': [
-        'claude-code-builder=claude_code_builder.cli:main',
-    ],
+#### Required MCP Servers
+```json
+{
+    "mcpServers": {
+        "mem0": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-mem0"],
+            "env": {"MEM0_API_KEY": "${MEM0_API_KEY:-}"},
+            "description": "Persistent memory across all projects"
+        },
+        "context7": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-context7"],
+            "description": "Latest documentation for libraries"
+        },
+        "filesystem": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+            "description": "File system operations with full logging"
+        },
+        "git": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-git"],
+            "description": "Version control throughout build"
+        }
+    }
 }
 ```
 
-### 14. **Dependency Management**
-- Minimal dependencies in __init__.py
-- Lazy imports where beneficial
-- Clear dependency graph
-- No circular dependencies
-- Optional dependencies handled gracefully
+### 6. **TOOL USAGE LOGGING STANDARDS**
 
-### 15. **Logging Strategy**
-- Use Python's logging module
-- Configure in main.py
-- Module-specific loggers
-- Appropriate log levels
-- Rich handler for formatted output
+#### Every Tool Use Must Include:
+```bash
+# Before tool execution
+log("TOOL", "Using ${TOOL_NAME}")
+log("TOOL", "Rationale: ${WHY_USING_THIS_TOOL}")
+log("TOOL", "Expected outcome: ${WHAT_WE_EXPECT}")
 
-## SPECIFIC MODULE IMPLEMENTATIONS
+# During execution
+display_tool_parameters "${TOOL_NAME}" "${PARAMETERS}"
 
-### claude_code_builder/__init__.py
-```python
-"""Claude Code Builder - Autonomous project builder using Claude Code SDK."""
-__version__ = "2.3.0"
-__author__ = "Claude Code Builder Team"
+# After execution
+log("TOOL", "Result: ${WHAT_WAS_ACHIEVED}")
+log("TOOL", "Learning: ${WHAT_WAS_LEARNED}")
 
-from claude_code_builder.main import ClaudeCodeBuilder
-
-__all__ = ["ClaudeCodeBuilder", "__version__"]
+# Memory storage
+log("MEMORY", "Storing: ${PATTERN_FOR_FUTURE_USE}")
 ```
 
-### claude_code_builder/cli.py
-```python
-import click
-from claude_code_builder.main import ClaudeCodeBuilder
-from claude_code_builder.ui import console
+#### Tool Categories and Logging:
+- **Memory Operations** (mem0__*): Purple logging with 🧠 icon
+- **Documentation Lookup** (context7__*): Cyan logging with 📚 icon  
+- **File Operations** (filesystem__*): Green logging with 📁 icon
+- **Version Control** (git__*): Orange logging with 📝 icon
+- **General Tools**: Cyan logging with 🔧 icon
 
-@click.command()
-@click.argument('spec_file', type=click.Path(exists=True))
-@click.option('--output-dir', '-o', default='./output')
-# ... all other options
-def main(spec_file, output_dir, **kwargs):
-    """Build projects autonomously using Claude Code SDK."""
-    builder = ClaudeCodeBuilder(spec_file, output_dir, **kwargs)
-    builder.run()
+### 7. **PHASE EXECUTION STANDARDS**
 
-if __name__ == '__main__':
-    main()
+#### Every Phase Must:
+1. **Load Context**: Previous phase memory and learnings
+2. **Check mem0**: Search for relevant patterns and solutions
+3. **Research**: Use context7 for documentation when needed
+4. **Execute with Logging**: Implement with full rationale
+5. **Store Learnings**: Save discoveries and patterns to mem0
+6. **Git Commit**: Version control with detailed messages
+7. **Track Costs**: Record and analyze API usage
+
+#### Phase Prompt Template:
+```bash
+PHASE ${PHASE_NUM}: ${PHASE_NAME}
+
+OBJECTIVE: ${PHASE_OBJECTIVE}
+
+MEMORY CONTEXT FROM PREVIOUS PHASES:
+${MEMORY_CONTEXT}
+
+REQUIREMENTS (PRODUCTION STANDARDS - NO EXCEPTIONS):
+- Check mem0 for any relevant patterns before implementing
+- Use context7 for documentation when using new libraries
+- Log the rationale for every tool use
+- Store important patterns and decisions in mem0
+- Implement all functionality completely (NO placeholders, NO TODOs)
+- NO mock implementations - everything must be REAL and FUNCTIONAL
+- NO unit tests - create integration and E2E tests ONLY
+- Use REAL APIs, databases, and services (no simulations)
+- Include comprehensive error handling with retry logic
+- Add production-grade logging to stdout/stderr
+- Use environment variables for ALL configuration
+- Implement proper security (input validation, auth, etc.)
+- Ensure cloud-ready architecture
+- Create integration tests that use real services
+
+ENHANCED TOOLSET AVAILABLE:
+- mem0__search-memories/add-memory (MANDATORY - check first, store learnings)
+- context7__resolve-library-id/get-library-docs (for latest documentation)
+- filesystem__read_file/write_file/create_directory (with full logging)
+- sequential_thinking__think_about (for complex analysis)
+- git__status/add/commit (for version control)
 ```
 
-### Module Interfaces
+### 8. **GIT INTEGRATION STANDARDS**
 
-#### models/phase.py
-```python
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from claude_code_builder.models.build_status import BuildStatus
-
-@dataclass
-class Phase:
-    """Represents a build phase."""
-    id: str
-    name: str
-    description: str
-    tasks: List[str]
-    dependencies: List[str] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)
-    status: BuildStatus = BuildStatus.PENDING
+#### Repository Initialization:
+```bash
+initialize_git_repo() {
+    log "GIT" "📝 Initializing git repository for version control"
     
-    def validate(self) -> bool:
-        """Validate phase configuration."""
-        
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        
-    def __rich__(self) -> Panel:
-        """Rich representation for display."""
-```
-
-#### execution/executor.py
-```python
-class ClaudeCodeExecutor:
-    """Executes Claude Code CLI commands."""
+    if [ ! -d ".git" ]; then
+        git init
+        log "GIT" "📝 Created new git repository"
+    fi
     
-    def __init__(self, model: str, max_turns: int):
-        self.model = model
-        self.max_turns = max_turns
-        
-    async def execute_phase(self, phase: Phase, 
-                          prompt: str,
-                          mcp_config: Optional[Path] = None) -> ExecutionResult:
-        """Execute a build phase."""
+    # Create comprehensive .gitignore
+    # Add build artifacts, logs, state files
+    # Commit initial setup
+}
 ```
 
-### Quality Checklist
+#### Enhanced Commit Messages:
+```bash
+git commit -m "${GIT_COMMIT_MSG}
 
-Before completing each module:
-- [ ] Module has clear single responsibility
-- [ ] All functions are fully implemented
-- [ ] Proper imports and exports
-- [ ] Type hints complete
-- [ ] Docstrings present
-- [ ] Error handling comprehensive
-- [ ] Unit tests written (where applicable)
-- [ ] Integration with other modules tested
-- [ ] No circular dependencies
-- [ ] Follows PEP 8
+Phase Details:
+- Duration: ${PHASE_DURATION}s
+- Memory Points: ${MEMORY_POINTS}
+- Tools Used: See phase-${PHASE_NUM}-output.log
 
-## Phase-Specific Module Creation
+🤖 Generated with Claude Code Builder v3.0 Enhanced
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
 
-### Phase 1: Foundation
-- Set up package structure
-- Create all directories
-- Initialize all __init__.py files
-- Create setup.py with proper configuration
+### 9. **COST TRACKING IMPLEMENTATION**
 
-### Phase 2: Models
-- One file per model
-- Consistent structure
-- Rich formatting support
-- Validation methods
+#### Cost Information Extraction:
+```bash
+track_cost_information() {
+    local phase_num=$1
+    local log_file=$2
+    
+    # Extract cost data from Claude Code logs
+    local session_cost=$(grep -o '"session_cost":[0-9.]*' "$log_file" | tail -1)
+    local total_cost=$(grep -o '"total_cost":[0-9.]*' "$log_file" | tail -1)
+    
+    # Store in .cost-tracking.json
+    # Log cost breakdown
+    # Identify optimization opportunities
+}
+```
 
-### Phase 3-9: Feature Modules
-- Clear module boundaries
-- Well-defined interfaces
-- Consistent patterns
-- Proper error handling
+### 10. **ERROR HANDLING STANDARDS**
 
-### Phase 10: Integration
-- Wire everything together in main.py
-- Ensure all imports work
-- Test module interactions
-- Verify CLI functionality
+#### Production-Grade Error Handling:
+```bash
+# Dependency checking at script start
+REQUIRED_TOOLS=("jq" "git" "npx" "claude")
+for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo -e "\033[0;31mError:\033[0m Required tool '\033[1m$tool\033[0m' not found."
+        exit 1
+    fi
+done
 
-### Phase 11: Testing
-- Test each module independently
-- Test integration points
-- Test error scenarios
-- Performance testing
+# Interactive session detection
+if [ -t 1 ]; then
+    clear  # Only clear in interactive sessions
+fi
 
-### Phase 12: Polish
-- Final documentation
-- Code cleanup
-- Consistency check
-- Release preparation
+# Resume logic with directory handling
+if [ "$RESUME_BUILD" = true ] && [ "$OUTPUT_DIR" != "." ]; then
+    log "WARNING" "Using saved output directory during resume"
+fi
+```
 
-Remember: This is a professional Python package that will be distributed and used by others. Quality, modularity, and maintainability are paramount!
+### 11. **FUNCTIONAL TESTING REQUIREMENTS**
+
+#### Testing Must Be Real:
+```bash
+# NO DRY RUNS - Create actual test specification
+cat > test-spec.md << 'EOF'
+# Test API with FastAPI - PRODUCTION STANDARDS
+Build a REAL, FUNCTIONAL API using FastAPI with:
+- Health check endpoint with actual status checks
+- JWT authentication with real token validation
+- Protected endpoints with proper authorization
+- Database integration (PostgreSQL or SQLite)
+- Integration tests ONLY (NO unit tests)
+- Environment variable configuration
+- Production-ready middleware
+EOF
+
+# Execute REAL build (NO dry run)
+claude-code-builder test-spec.md \
+    --output-dir ./test-output \
+    --enable-research \
+    --verbose \
+    --no-dry-run \
+    2>&1 | tee test-execution.log
+```
+
+### 12. **SECURITY IMPLEMENTATION**
+
+#### Security Standards:
+- **ZERO hardcoded credentials** - Environment variables only
+- **Input validation** for all user inputs
+- **Output sanitization** for all displays
+- **No bypassing authentication** ever
+- **SSL/TLS enforcement** for all connections
+- **Security event logging** for audit trails
+
+#### Environment Variable Configuration:
+```bash
+# MCP server environment variables
+"env": {
+    "MEM0_API_KEY": "${MEM0_API_KEY:-}",
+    "GITHUB_TOKEN": "${GITHUB_TOKEN:-}"
+}
+```
+
+### 13. **MEMORY PERSISTENCE STANDARDS**
+
+#### Build State Management:
+```bash
+save_build_state() {
+    local phase_num=$1
+    local status=$2
+    local cost_data=${3:-"{}"}
+    
+    cat > "$STATE_FILE" << EOF
+{
+    "version": "$VERSION",
+    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "current_phase": $phase_num,
+    "status": "$status",
+    "output_dir": "$OUTPUT_DIR",
+    "memory_file": "$MEMORY_FILE",
+    "cost_data": $cost_data
+}
+EOF
+}
+```
+
+#### Memory State Preservation:
+```bash
+save_memory_state() {
+    local phase_id=$1
+    local memory_data=$2
+    
+    # Update .build-memory-v3.json with phase learnings
+    # Include decisions made, patterns discovered
+    # Store for cross-phase context and future projects
+}
+```
+
+### 14. **SPECIFICATION COMPLIANCE**
+
+The builder must create projects that are:
+- **Complete and functional** - No placeholder code
+- **Production-ready** - Real error handling, logging, security
+- **Cloud-compatible** - Environment variables, health checks
+- **Well-tested** - Integration and E2E tests only
+- **Properly documented** - README, API docs, deployment guides
+- **Version controlled** - Full git history
+- **Cost-optimized** - Efficient API usage patterns
+
+### 15. **QUALITY VALIDATION**
+
+Before completion, verify:
+- ✅ All phases completed successfully
+- ✅ Memory integration active throughout
+- ✅ Research workflow demonstrated
+- ✅ Tool logging comprehensive with rationale
+- ✅ Git commits include detailed context
+- ✅ Cost tracking functional and accurate
+- ✅ NO mock implementations anywhere
+- ✅ Production standards enforced
+- ✅ Security requirements met
+- ✅ Error handling comprehensive
+
+### 16. **OUTPUT STRUCTURE**
+
+Final directory structure:
+```
+output-directory/
+├── claude-code-builder/                    # Generated project
+│   ├── [Complete, functional codebase]
+│   └── [Production-ready implementation]
+├── .build-state-v3-enhanced.json         # Build state
+├── .build-memory-v3.json                 # Memory persistence  
+├── .cost-tracking.json                   # Cost analytics
+├── .mcp.json                             # MCP configuration
+├── build-phases-v3.json                  # AI-generated phases
+├── build-strategy-v3.md                  # Strategy document
+├── .git/                                 # Version control
+└── [Various log files]                   # Execution logs
+```
+
+## SUCCESS CRITERIA
+
+The enhanced builder succeeds when it:
+1. **Learns from memory** and applies knowledge across projects
+2. **Researches thoroughly** using the mandatory workflow
+3. **Builds real projects** with no mocks or simulations
+4. **Logs comprehensively** with rationale for every action
+5. **Tracks costs accurately** and identifies optimizations
+6. **Enforces production standards** throughout the process
+7. **Integrates version control** with detailed history
+8. **Stores knowledge** for future project benefits
+
+This creates the most intelligent autonomous project builder that learns, researches, and improves with every use while maintaining the highest production standards.
